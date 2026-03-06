@@ -1,0 +1,41 @@
+# =============================================================
+# UK Robo Advisor — Python Dependencies
+# =============================================================
+
+# --- Web Framework ---
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# --- Database ---
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+
+# --- Data & Numerics ---
+pandas>=2.1.0
+numpy>=1.26.0
+scipy>=1.11.0
+
+# --- Market Data ---
+yfinance>=0.2.31
+
+# --- Portfolio Optimization ---
+pyportfolioopt>=1.5.5
+
+# --- Machine Learning / Statistics ---
+scikit-learn>=1.3.0
+statsmodels>=0.14.0
+
+# --- Environment & Config ---
+python-dotenv>=1.0.0
+
+# --- Validation ---
+pydantic>=2.5.0
+
+# --- HTTP ---
+httpx>=0.25.0
+
+# --- Scheduling ---
+apscheduler>=3.10.4
+
+# --- CORS ---
+fastapi-cors>=0.0.6
