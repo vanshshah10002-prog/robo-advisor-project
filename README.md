@@ -10,7 +10,7 @@ A sophisticated, UK-focused robo-advisory platform inspired by Wealthfront's met
 
 - **Risk Profiling** — 10-question subjective quiz + objective financial capacity scoring with conservative bias
 - **Portfolio Optimisation** — Mean-Variance Optimization (MVO) with Black-Litterman expected returns
-- **20+ UK-Listed ETFs** — Pre-seeded registry with expense ratios, ISINs, and TLH substitutes
+- **50 UK-Listed ETFs** — Pre-seeded registry across 31 asset classes with expense ratios, ISINs, factsheet URLs, and TLH substitutes
 - **Efficient Frontier** — Interactive visualization of optimal portfolios
 - **Monte Carlo Projections** — 30-year probabilistic forecasting with percentile fan charts
 - **Threshold-Based Rebalancing** — Drift monitoring with trade suggestions
