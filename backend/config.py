@@ -33,6 +33,7 @@ PRICE_CACHE_DB: str = "sqlite:///./backend/data/price_cache.db"
 HOST: str = os.getenv("HOST", "127.0.0.1")
 PORT: int = int(os.getenv("PORT", "8000"))
 DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
+BENCHMARK_TICKER: str = "VWRL.L"  # FTSE All-World — used for beta & tracking error
 
 # =============================================================
 # RISK SCORING WEIGHTS
@@ -71,37 +72,37 @@ RISK_DECAY_MAX_RISK: int = 6
 # ASSET CLASS UNIVERSE (UK-LISTED)
 # =============================================================
 ASSET_CLASSES: list[str] = [
-    "uk_equity",
-    "uk_mid_cap",
-    "global_equity",
-    "us_equity",
-    "us_tech",
-    "emerging_market_equity",
-    "japan_equity",
-    "europe_equity",
-    "asia_pacific_equity",
-    "uk_bonds",
-    "uk_gilts",
-    "uk_inflation_linked",
-    "global_bonds",
-    "corporate_bonds",
-    "high_yield_bonds",
-    "us_treasury",
-    "commodities_gold",
-    "commodities_silver",
-    "commodities_broad",
-    "uk_reits",
-    "global_reits",
-    "infrastructure",
-    "cash_equivalent",
-    "global_dividend",
-    "uk_dividend",
-    "esg_global",
-    "esg_uk",
-    "global_small_cap",
-    "global_value",
-    "global_momentum",
-    "global_quality",
+    "uk_equity", "uk_mid_cap", "global_equity", "us_equity", "us_tech",
+    "emerging_market_equity", "japan_equity", "europe_equity", "asia_pacific_equity",
+    "uk_bonds", "uk_gilts", "uk_inflation_linked", "global_bonds", "corporate_bonds",
+    "high_yield_bonds", "us_treasury",
+    "commodities_gold", "commodities_silver", "commodities_broad",
+    "uk_reits", "global_reits", "infrastructure",
+    "global_dividend", "uk_dividend", "esg_global", "esg_uk",
+    "global_small_cap", "global_value", "global_momentum", "global_quality",
+    
+    # --- Indian ETF Specific Classes ---
+    "indian_large_cap", 
+    "indian_mid_cap", 
+    "indian_small_cap", 
+    "indian_broad_equity",
+    "indian_factor_value", 
+    "indian_factor_momentum", 
+    "indian_factor_low_vol", 
+    "indian_factor_dividend",
+    "indian_sector_financials", 
+    "indian_sector_it", 
+    "indian_sector_healthcare", 
+    "indian_sector_fmcg",
+    "indian_sector_auto", 
+    "indian_sector_infra", 
+    "indian_sector_manufacturing", 
+    "indian_sector_psu",
+    "indian_gold", 
+    "indian_silver", 
+    "indian_bonds",
+    "indian_arbitrage_us_tech", 
+    "indian_arbitrage_us_equity"
 ]
 
 # =============================================================
@@ -130,7 +131,6 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
     "uk_reits":                {"min": 0.00, "max": 0.15},
     "global_reits":            {"min": 0.00, "max": 0.15},
     "infrastructure":          {"min": 0.00, "max": 0.10},
-    "cash_equivalent":         {"min": 0.02, "max": 0.15},
     "global_dividend":         {"min": 0.00, "max": 0.20},
     "uk_dividend":             {"min": 0.00, "max": 0.15},
     "esg_global":              {"min": 0.00, "max": 0.40},
@@ -139,6 +139,29 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
     "global_value":            {"min": 0.00, "max": 0.20},
     "global_momentum":         {"min": 0.00, "max": 0.15},
     "global_quality":          {"min": 0.00, "max": 0.20},
+
+    # --- Indian ETF CONSTRAINTS ---
+    "indian_large_cap":              {"min": 0.00, "max": 0.40},
+    "indian_mid_cap":                {"min": 0.00, "max": 0.20},
+    "indian_small_cap":              {"min": 0.00, "max": 0.15},
+    "indian_broad_equity":           {"min": 0.00, "max": 0.30},
+    "indian_factor_value":           {"min": 0.00, "max": 0.15},
+    "indian_factor_momentum":        {"min": 0.00, "max": 0.15},
+    "indian_factor_low_vol":         {"min": 0.00, "max": 0.20},
+    "indian_factor_dividend":        {"min": 0.00, "max": 0.10},
+    "indian_sector_financials":      {"min": 0.00, "max": 0.20},
+    "indian_sector_it":              {"min": 0.00, "max": 0.15},
+    "indian_sector_healthcare":      {"min": 0.00, "max": 0.10},
+    "indian_sector_fmcg":            {"min": 0.00, "max": 0.10},
+    "indian_sector_auto":            {"min": 0.00, "max": 0.05},
+    "indian_sector_infra":           {"min": 0.00, "max": 0.05},
+    "indian_sector_manufacturing":   {"min": 0.00, "max": 0.05},
+    "indian_sector_psu":             {"min": 0.00, "max": 0.10},
+    "indian_gold":                   {"min": 0.00, "max": 0.15},
+    "indian_silver":                 {"min": 0.00, "max": 0.05},
+    "indian_bonds":                  {"min": 0.00, "max": 0.50},
+    "indian_arbitrage_us_tech":      {"min": 0.00, "max": 0.25},
+    "indian_arbitrage_us_equity":    {"min": 0.00, "max": 0.30},
 }
 
 # =============================================================
@@ -150,7 +173,7 @@ REBALANCE_CHECK_FREQUENCY: str = "daily"     # "daily" | "weekly" | "monthly"
 # =============================================================
 # OPTIMIZATION PARAMETERS
 # =============================================================
-MVO_RISK_FREE_RATE: float = 0.0525           # UK base rate (update periodically)
+MVO_RISK_FREE_RATE: float = 0.040            # Strategic UK risk-free rate (reflecting current yield environment)
 BLACK_LITTERMAN_TAU: float = 0.05            # Scaling factor for BL prior uncertainty
 MVO_EFFICIENT_FRONTIER_POINTS: int = 50      # Number of portfolios on frontier curve
 TRACKING_ERROR_WEIGHT: float = 0.10          # Weight for tracking error minimisation (secondary objective)

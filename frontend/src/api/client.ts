@@ -84,7 +84,7 @@ export function fetchAssetClasses(): Promise<AssetClassInfo[]> {
 export function createPortfolio(data: {
     user_id: number
     risk_score: number
-    selected_asset_classes: string[]
+    selected_asset_classes?: string[]
     investment_amount: number
     monthly_contribution: number
     uses_isa: boolean
@@ -97,6 +97,16 @@ export function createPortfolio(data: {
 
 export function fetchPortfolio(portfolioId: number) {
     return request(`/portfolio/${portfolioId}`)
+}
+
+export function fetchUserPortfolios(userId: number): Promise<any[]> {
+    return request(`/portfolios/user/${userId}`)
+}
+
+export function refreshPortfolio(portfolioId: number): Promise<{ total_return_pct: number }> {
+    return request(`/portfolio/${portfolioId}/refresh`, {
+        method: 'POST',
+    })
 }
 
 // --- Simulation ---

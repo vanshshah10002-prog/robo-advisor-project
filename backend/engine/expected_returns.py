@@ -1,13 +1,29 @@
 """
 Expected Returns Estimator
 ============================
-Computes expected returns using CAPM and optionally the Black-Litterman model.
+Computes expected returns using CAPM as the primary model with a proper
+global market proxy, and optionally the Black-Litterman model for views.
 Subtracts ETF expense ratios for cost-adjusted returns.
+
+Algorithm (academically correct per CAPM + He & Litterman, 1999):
+1. PRIMARY: CAPM with explicit global market proxy (VWRL.L / ISF.L)
+      E[Ri] = Rf + βi * (E[Rm] - Rf)
+   where E[Rm] is taken from the market proxy's 5-year historical CAGR.
+
+2. OPTIONAL: Black-Litterman views blend into the CAPM prior as posterior.
+   NOTE on BL dilution effect (root cause of previous 3-4% bug):
+   The formula π = λ·Σ·w is only valid when w is the GLOBAL market portfolio
+   (tens of thousands of assets). When w covers only 60-100 ETFs, each
+   w_i ≈ 1-2%, making Cov(i, mkt) tiny → π_i collapses near zero.
+   CAPM avoids this by directly using historical beta regression against
+   an actual market index, not a weighted-ETF-average.
+
+3. Subtract ETF expense ratios for net-of-fee returns.
 
 Reference:
 - CAPM: Sharpe (1964), Lintner (1965)
 - Black-Litterman: He & Litterman (1999)
-- Factor model views: Fama-French factors adapted for UK market
+- Dilution flaw: Idzorek (2005) "A Step-by-Step Guide to the Black-Litterman Model"
 """
 
 import logging
@@ -25,55 +41,187 @@ from backend.config import (
     FACTOR_MODEL_LOOKBACK_YEARS,
     BENCHMARK_TICKER,
 )
+from backend.engine.asset_universe import get_all_etfs
 
 logger = logging.getLogger(__name__)
+
+# Market risk aversion coefficient λ — used only for BL views blending
+# Standard literature value (He & Litterman, 1999)
+MVO_RISK_AVERSION: float = 2.5
+
+# Assumed annualised market return for the global equity benchmark (VWRL.L)
+# Source: MSCI World / FTSE All-World 30-year average real return ~7%
+# + ~3% inflation ≈ 10%. Conservative estimate for multi-asset portfolio = 8%.
+ASSUMED_MARKET_RETURN: float = 0.08
+
+
+def _get_market_caps_from_registry(tickers: list[str]) -> dict[str, float]:
+    """
+    Get market cap weights from the ETF registry's fund_size_gbp field.
+    If fund_size_gbp is not available, use a sensible proxy based on
+    the ETF's asset class.
+
+    Parameters:
+        tickers (list[str]): List of ETF tickers.
+
+    Returns:
+        dict[str, float]: {ticker: market_cap_proxy} for BL equilibrium.
+    """
+    registry = get_all_etfs()
+    fund_sizes = {}
+
+    # Build lookup by ticker
+    registry_by_ticker = {etf["ticker"]: etf for etf in registry}
+
+    # Default AUM proxies by asset class type (in millions GBP)
+    AUM_DEFAULTS = {
+        "equity": 15000,
+        "bonds": 3000,
+        "commodities": 500,
+        "reits": 500,
+        "cash": 200,
+        "alternatives": 300,
+    }
+
+    for ticker in tickers:
+        etf = registry_by_ticker.get(ticker, {})
+        fund_size = etf.get("fund_size_gbp_mm", 0)
+
+        if fund_size and fund_size > 0:
+            fund_sizes[ticker] = fund_size  # Already in millions GBP
+        else:
+            # Proxy based on asset class
+            ac = etf.get("asset_class", "")
+            if "bond" in ac or "gilt" in ac or "treasury" in ac or "inflation" in ac:
+                proxy = AUM_DEFAULTS["bonds"]
+            elif "commodity" in ac or "gold" in ac or "silver" in ac:
+                proxy = AUM_DEFAULTS["commodities"]
+            elif "reit" in ac or "real_estate" in ac:
+                proxy = AUM_DEFAULTS["reits"]
+            elif "cash" in ac:
+                proxy = AUM_DEFAULTS["cash"]
+            elif "infrastructure" in ac or "value" in ac or "momentum" in ac or "quality" in ac:
+                proxy = AUM_DEFAULTS["alternatives"]
+            else:
+                proxy = AUM_DEFAULTS["equity"]
+            fund_sizes[ticker] = proxy
+
+    logger.info(f"Market cap weights: {len(fund_sizes)} tickers, "
+                f"total AUM={sum(fund_sizes.values()):,.0f}")
+    return fund_sizes
+
+
+def _fetch_market_proxy_prices(
+    prices: pd.DataFrame,
+    risk_free_rate: float,
+) -> Optional[pd.Series]:
+    """
+    Fetch the market proxy (benchmark) price series aligned to the ETF prices.
+
+    Uses BENCHMARK_TICKER (default: VWRL.L) from config. If not available, falls
+    back to ISF.L (FTSE-100), then uses equal-weighted ETF average.
+
+    Parameters:
+        prices (pd.DataFrame): Already-fetched price matrix for all ETFs.
+        risk_free_rate (float): For fallback market return estimate.
+
+    Returns:
+        pd.Series or None: Aligned market proxy close prices.
+    """
+    # Check if the benchmark is already in the price matrix
+    if BENCHMARK_TICKER in prices.columns:
+        logger.info(f"Using {BENCHMARK_TICKER} as market proxy (already in universe)")
+        return prices[BENCHMARK_TICKER]
+
+    # Try ISF.L (FTSE 100) as secondary proxy
+    fallback_proxy = "ISF.L"
+    if fallback_proxy in prices.columns:
+        logger.info(f"Using {fallback_proxy} as market proxy fallback")
+        return prices[fallback_proxy]
+
+    # Fetch benchmark separately
+    try:
+        from backend.data.market_data import build_close_price_matrix
+        benchmark_prices = build_close_price_matrix(
+            [BENCHMARK_TICKER], period_years=FACTOR_MODEL_LOOKBACK_YEARS
+        )
+        if benchmark_prices is not None and not benchmark_prices.empty:
+            aligned = benchmark_prices[BENCHMARK_TICKER].reindex(prices.index).ffill()
+            logger.info(f"Fetched {BENCHMARK_TICKER} as standalone market proxy")
+            return aligned
+    except Exception as e:
+        logger.warning(f"Could not fetch benchmark {BENCHMARK_TICKER}: {e}")
+
+    logger.warning("No market proxy available — CAPM will use equal-weighted portfolio as market")
+    return None
 
 
 def compute_capm_returns(
     prices: pd.DataFrame,
     risk_free_rate: float = MVO_RISK_FREE_RATE,
+    market_prices: Optional[pd.Series] = None,
+    assumed_market_return: float = ASSUMED_MARKET_RETURN,
 ) -> pd.Series:
     """
     Compute expected returns using the Capital Asset Pricing Model (CAPM).
 
     E[Ri] = Rf + βi * (E[Rm] - Rf)
 
-    Uses PyPortfolioOpt's CAPM implementation which estimates beta from
-    historical returns regression against the market portfolio.
+    where:
+        - βi is estimated via OLS regression of asset returns on market returns
+        - E[Rm] = historical CAGR of the market proxy (VWRL.L or ISF.L)
+        - Rf = risk-free rate from config
+
+    This model is robust to the "dilution effect" that plagues BL in small
+    universes because beta is derived from actual price co-movement regressions,
+    not from weighted covariance of a small ETF subset.
 
     Parameters:
         prices (pd.DataFrame): Historical close prices (columns = tickers).
         risk_free_rate (float): Annualised risk-free rate (UK base rate).
+        market_prices (pd.Series, optional): Market proxy price series.
+        assumed_market_return (float): Assumed annualised market return.
 
     Returns:
         pd.Series: Expected annual returns per asset.
     """
     try:
-        mu = er.capm_return(prices, risk_free_rate=risk_free_rate)
+        if market_prices is not None:
+            # Convert market proxy to DataFrame for pypfopt compatibility
+            mkt_df = pd.DataFrame({"market": market_prices})
+            mkt_df = mkt_df.reindex(prices.index).ffill().dropna()
+
+            # Use pypfopt's CAPM which regresses each asset on the market proxy
+            mu = er.capm_return(
+                prices,
+                market_prices=mkt_df,
+                risk_free_rate=risk_free_rate,
+                compounding=True,
+                frequency=252,
+            )
+        else:
+            # Fallback: no explicit market proxy — pypfopt uses equal-weighted portfolio
+            # This is less ideal but still better than BL with diluted weights
+            mu = er.capm_return(
+                prices,
+                risk_free_rate=risk_free_rate,
+                compounding=True,
+                frequency=252,
+            )
+
+        logger.info(f"CAPM returns: mean={mu.mean():.4f}, range=[{mu.min():.4f}, {mu.max():.4f}]")
+
+        # Sanity check: returns should be in [-10%, +50%] range for ETFs
+        if mu.max() > 0.60 or mu.min() < -0.15:
+            logger.warning(f"CAPM returns seem extreme [{mu.min():.4f}, {mu.max():.4f}], clamping")
+            mu = mu.clip(-0.10, 0.50)
+
         return mu
+
     except Exception as e:
-        logger.error(f"CAPM return estimation failed: {e}")
-        # Fallback to historical mean returns
-        return er.mean_historical_return(prices)
-
-
-def compute_historical_returns(
-    prices: pd.DataFrame,
-    method: str = "mean",
-) -> pd.Series:
-    """
-    Compute expected returns from historical data.
-
-    Parameters:
-        prices (pd.DataFrame): Historical close prices.
-        method (str): "mean" for arithmetic mean, "ema" for exponentially weighted.
-
-    Returns:
-        pd.Series: Annualised expected returns.
-    """
-    if method == "ema":
-        return er.ema_historical_return(prices, span=252)
-    return er.mean_historical_return(prices)
+        logger.error(f"CAPM return estimation failed: {e} — falling back to historical mean")
+        hist = er.mean_historical_return(prices, compounding=True, frequency=252)
+        return hist.clip(-0.05, 0.35)
 
 
 def compute_black_litterman_returns(
@@ -88,50 +236,80 @@ def compute_black_litterman_returns(
     """
     Compute expected returns using the Black-Litterman model.
 
-    The BL model combines market-implied equilibrium returns (from CAPM)
-    with investor "views" using Bayesian inference, producing more stable
-    expected return estimates than raw historical means.
-
-    Algorithm:
-    1. Compute market-implied equilibrium returns (π = δΣw_mkt)
-    2. If views provided, blend with equilibrium using BL formula
-    3. Result: E[R] = [(τΣ)^-1 + P'Ω^-1 P]^-1 [(τΣ)^-1 π + P'Ω^-1 Q]
+    NOTE: Without views, the pure BL prior π = λ·Σ·w suffers from the
+    "dilution effect" in universes of 60-100+ assets: each w_i ≈ 1%,
+    collapsing π_i to near zero. This function is most useful when
+    investor views are provided to shift the prior meaningfully.
 
     Parameters:
         prices (pd.DataFrame): Historical close prices.
         cov_matrix (pd.DataFrame): Covariance matrix of returns.
-        market_caps (dict, optional): {ticker: market_cap_gbp} for equilibrium weights.
+        market_caps (dict, optional): {ticker: AUM_gbp} for equilibrium weights.
         views (dict, optional): {ticker: expected_return_view} — absolute views.
         view_confidence (list, optional): Confidence levels for each view (0–1).
-        tau (float): Scaling factor for uncertainty in the prior (default 0.05).
+        tau (float): Scaling factor for uncertainty in the prior.
         risk_free_rate (float): Annualised risk-free rate.
 
     Returns:
-        pd.Series: BL-adjusted expected returns.
+        pd.Series: BL/equilibrium expected returns.
     """
     try:
-        # If no market caps, use equal weighting
+        # Get market cap weights from registry if not provided
         if market_caps is None:
-            n = len(prices.columns)
-            market_caps = {col: 1.0 / n for col in prices.columns}
+            market_caps = _get_market_caps_from_registry(list(prices.columns))
 
-        bl = BlackLittermanModel(
-            cov_matrix,
-            pi="market",
-            market_caps=market_caps,
-            risk_aversion=2.5,  # Standard market risk aversion
-            risk_free_rate=risk_free_rate,
+        # Filter to only tickers we have data for
+        tickers = [t for t in cov_matrix.index if t in market_caps]
+        if len(tickers) < 2:
+            logger.warning("Not enough tickers with market caps, falling back to CAPM")
+            return compute_capm_returns(prices, risk_free_rate)
+
+        filtered_caps = {t: market_caps[t] for t in tickers}
+
+        # Compute market weights: wₘ = AUM_i / Σ AUM_j
+        total_aum = sum(filtered_caps.values())
+        w_mkt = np.array([filtered_caps[t] / total_aum for t in tickers])
+
+        # Compute equilibrium prior (EXCESS returns): π = λ · Σ · wₘ
+        # This is what the market implies as the fair RISK PREMIUM.
+        cov_sub = cov_matrix.loc[tickers, tickers].values
+        pi = MVO_RISK_AVERSION * (cov_sub @ w_mkt)
+
+        result = pd.Series(pi, index=tickers)
+
+        logger.info(
+            f"BL equilibrium prior π computed: mean={result.mean():.4f}, "
+            f"range=[{result.min():.4f}, {result.max():.4f}]"
         )
 
-        # Add views if provided
-        if views:
-            # Convert absolute views to the format BL expects
-            bl.bl_returns()  # Compute equilibrium first
+        # If views are provided, use the full BL posterior
+        if views and len(views) > 0:
+            try:
+                bl = BlackLittermanModel(
+                    cov_matrix.loc[tickers, tickers],
+                    pi=result,  # Pass our computed prior
+                    absolute_views=views,
+                )
+                result = bl.bl_returns()
+                logger.info(f"BL posterior with {len(views)} views applied")
+            except Exception as ve:
+                logger.warning(f"BL views integration failed ({ve}), using prior π only")
 
-        return bl.bl_returns()
+        # Add Risk-Free Rate back to the excess returns to get Total Expected Returns
+        # E[R] = Rf + Premium
+        result = result + risk_free_rate
+
+        # Validate: returns should be reasonable
+        if result.max() > 0.60 or result.min() < -0.10:
+            logger.warning(
+                f"BL returns extreme: [{result.min():.4f}, {result.max():.4f}], clamping"
+            )
+            result = result.clip(-0.05, 0.40)
+
+        return result
 
     except Exception as e:
-        logger.warning(f"Black-Litterman failed, falling back to CAPM: {e}")
+        logger.warning(f"Black-Litterman failed ({e}), falling back to CAPM")
         return compute_capm_returns(prices, risk_free_rate)
 
 
@@ -168,26 +346,35 @@ def get_expected_returns(
     use_bl: bool = USE_BLACK_LITTERMAN,
 ) -> pd.Series:
     """
-    Full expected returns pipeline: CAPM or BL → cost-adjusted.
+    Full expected returns pipeline: CAPM (primary) → optional BL overlay → cost-adjusted.
+
+    MODEL SELECTION RATIONALE:
+    - CAPM is primary: robust β-regression against a real market index avoids
+      the BL dilution effect that collapses returns to 3-4% in large universes.
+    - BL is secondary: only activated if explicit analyst views are injected.
+      Without views, BL degenerates to a noisy scaled-covariance estimate.
 
     Parameters:
         prices (pd.DataFrame): Historical close prices.
         cov_matrix (pd.DataFrame): Covariance matrix.
         expense_ratios (dict): {ticker: annual_expense_ratio}.
         risk_free_rate (float): UK base rate.
-        use_bl (bool): Whether to use Black-Litterman (True) or CAPM (False).
+        use_bl (bool): Legacy flag — BL is only used if views are injected.
 
     Returns:
         pd.Series: Net-of-fee expected annual returns.
     """
-    if use_bl:
-        mu = compute_black_litterman_returns(
-            prices, cov_matrix, risk_free_rate=risk_free_rate,
-        )
-    else:
-        mu = compute_capm_returns(prices, risk_free_rate)
+    # Step 1: Fetch/align market proxy for CAPM beta regression
+    market_prices = _fetch_market_proxy_prices(prices, risk_free_rate)
 
-    # Cost adjustment
+    # Step 2: PRIMARY MODEL — CAPM with explicit market proxy
+    mu = compute_capm_returns(prices, risk_free_rate, market_prices=market_prices)
+
+    # Step 3: Cost adjustment (net-of-fee returns)
     mu = adjust_for_costs(mu, expense_ratios)
 
+    logger.info(
+        f"Final expected returns (CAPM, net-of-fee): "
+        f"mean={mu.mean():.4f}, range=[{mu.min():.4f}, {mu.max():.4f}]"
+    )
     return mu

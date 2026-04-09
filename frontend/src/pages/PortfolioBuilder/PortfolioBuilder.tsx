@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { useAdvisorStore } from '../../store/useAdvisorStore'
-import { createPortfolio } from '../../api/client'
+import { createPortfolio, refreshPortfolio } from '../../api/client'
 import './PortfolioBuilder.css'
 
 const CHART_COLORS = [
@@ -16,6 +16,7 @@ export default function PortfolioBuilder() {
     const navigate = useNavigate()
     const store = useAdvisorStore()
     const [isOptimising, setIsOptimising] = useState(false)
+    const [isRefreshing, setIsRefreshing] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [localRisk, setLocalRisk] = useState(store.adjustedRiskScore || store.riskProfile?.risk_score_int || 5)
 
@@ -32,7 +33,6 @@ export default function PortfolioBuilder() {
             const result = await createPortfolio({
                 user_id: store.riskProfile?.user_id || 1,
                 risk_score: localRisk,
-                selected_asset_classes: store.selectedAssetClasses,
                 investment_amount: store.investmentAmount,
                 monthly_contribution: store.monthlyContribution,
                 uses_isa: store.usesIsa,
@@ -41,9 +41,25 @@ export default function PortfolioBuilder() {
             store.setAdjustedRiskScore(localRisk)
             store.setPortfolioResult(result)
         } catch (e: any) {
-            setError(e.message || 'Optimisation failed. Make sure the backend is running and price data is seeded (python scripts/seed_etf_registry.py).')
+            setError(e.message || 'Optimisation failed.')
         } finally {
             setIsOptimising(false)
+        }
+    }
+
+    const handleRefresh = async () => {
+        if (!portfolio?.portfolio_id) return
+        setIsRefreshing(true)
+        try {
+            const res = await refreshPortfolio(portfolio.portfolio_id)
+            store.setPortfolioResult({
+                ...portfolio,
+                total_return_pct: res.total_return_pct
+            })
+        } catch (e) {
+            console.error("Refresh failed", e)
+        } finally {
+            setIsRefreshing(false)
         }
     }
 
@@ -66,12 +82,54 @@ export default function PortfolioBuilder() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
         >
-            <div className="page-header">
-                <h1 className="page-title">Portfolio Builder</h1>
-                <p className="page-subtitle">
-                    Adjust your risk level and see the optimal allocation update in real time.
-                </p>
+            <div className="page-header builder__header">
+                <div>
+                    <h1 className="page-title">Portfolio Strategy</h1>
+                    <p className="page-subtitle">
+                        Algorithmic MVO allocation for {store.riskProfile?.name || 'Advisor User'}.
+                    </p>
+                </div>
+                <div className="builder__header-actions">
+                    <button className="btn btn--secondary" onClick={() => navigate('/history')}>View Vault</button>
+                    <button className="btn btn--primary" onClick={handleRefresh} disabled={isRefreshing || !portfolio}>
+                        {isRefreshing ? 'Syncing...' : 'Refresh Prices'}
+                    </button>
+                </div>
             </div>
+
+            {/* Summary Analytics Dashboard */}
+            {portfolio && (
+                <div className="builder__summary-grid">
+                    <motion.div className="card summary-card" whileHover={{ y: -5 }}>
+                        <span className="summary-card__label">Portfolio Return</span>
+                        <span className={`summary-card__value ${(portfolio.total_return_pct || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>
+                            {((portfolio.total_return_pct || 0) * 100).toFixed(2)}%
+                        </span>
+                        <span className="summary-card__sub">Since creation</span>
+                    </motion.div>
+                    <motion.div className="card summary-card" whileHover={{ y: -5 }}>
+                        <span className="summary-card__label">Expected Alpha</span>
+                        <span className="summary-card__value text-accent">
+                            {( (portfolio.alpha || 0) * 100).toFixed(2)}%
+                        </span>
+                        <span className="summary-card__sub">Over risk-free rate</span>
+                    </motion.div>
+                    <motion.div className="card summary-card" whileHover={{ y: -5 }}>
+                        <span className="summary-card__label">Sharpe Ratio</span>
+                        <span className="summary-card__value">
+                            {portfolio.sharpe_ratio.toFixed(2)}
+                        </span>
+                        <span className="summary-card__sub">Risk-adjusted metric</span>
+                    </motion.div>
+                    <motion.div className="card summary-card" whileHover={{ y: -5 }}>
+                        <span className="summary-card__label">Risk Level</span>
+                        <span className="summary-card__value text-secondary">
+                            {localRisk}/10
+                        </span>
+                        <span className="summary-card__sub">{riskBands[localRisk]}</span>
+                    </motion.div>
+                </div>
+            )}
 
             {/* Risk Slider */}
             <div className="card builder__risk-card">

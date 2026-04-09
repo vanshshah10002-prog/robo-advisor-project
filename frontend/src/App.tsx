@@ -7,6 +7,7 @@ import PortfolioBuilder from './pages/PortfolioBuilder/PortfolioBuilder'
 import Review from './pages/Review/Review'
 import Dashboard from './pages/Dashboard/Dashboard'
 import Landing from './pages/Landing/Landing'
+import PortfolioHistory from './pages/PortfolioHistory/PortfolioHistory'
 
 function App() {
     return (
@@ -20,6 +21,7 @@ function App() {
                     <Route path="/builder" element={<PortfolioBuilder />} />
                     <Route path="/review" element={<Review />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/history" element={<PortfolioHistory />} />
                 </Routes>
             </AnimatePresence>
 

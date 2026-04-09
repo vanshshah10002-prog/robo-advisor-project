@@ -25,33 +25,44 @@ def compute_covariance_ledoit_wolf(prices: pd.DataFrame) -> pd.DataFrame:
     """
     Compute the Ledoit-Wolf shrinkage covariance matrix.
 
-    The Ledoit-Wolf estimator shrinks the sample covariance matrix toward
-    a structured target (constant correlation model), producing a more
-    stable estimate that performs better in optimisation.
-
-    Separates into systematic + idiosyncratic components implicitly
-    via the shrinkage procedure.
+    IMPORTANT: Converts prices to daily returns first to avoid
+    price-scale artifacts when ETF prices differ greatly
+    (e.g., IGLT.L ~£10 vs SGLN.L ~£7500).
 
     Parameters:
         prices (pd.DataFrame): Historical close prices (columns = tickers).
 
     Returns:
-        pd.DataFrame: Shrinkage-estimated covariance matrix.
+        pd.DataFrame: Annualised shrinkage covariance matrix.
     """
     try:
-        cs = risk_models.CovarianceShrinkage(prices)
-        return cs.ledoit_wolf()
+        # Convert to daily percentage returns first
+        returns = prices.pct_change().dropna()
+        if returns.empty or len(returns) < 30:
+            logger.warning("Insufficient return data for Ledoit-Wolf, using sample cov")
+            return risk_models.sample_cov(prices)
+
+        # Use returns_data=True so pypfopt knows these are returns, not prices
+        cs = risk_models.CovarianceShrinkage(returns, returns_data=True)
+        # cs.ledoit_wolf() already annualises based on daily frequency in our index
+        cov = cs.ledoit_wolf()
+
+        logger.info(
+            f"Ledoit-Wolf covariance computed: {len(cov)} assets, "
+            f"vol range [{np.sqrt(np.diag(cov)).min():.4f}, {np.sqrt(np.diag(cov)).max():.4f}]"
+        )
+        return cov
     except Exception as e:
         logger.error(f"Ledoit-Wolf shrinkage failed: {e}")
-        return risk_models.sample_cov(prices)
+        # Fallback: manual returns-based sample covariance
+        returns = prices.pct_change().dropna()
+        cov = returns.cov() * 252  # Annualise
+        return cov
 
 
 def compute_covariance_oracle(prices: pd.DataFrame) -> pd.DataFrame:
     """
     Compute covariance using Oracle Approximating Shrinkage (OAS).
-
-    An alternative shrinkage method that can outperform Ledoit-Wolf
-    in some conditions.
 
     Parameters:
         prices (pd.DataFrame): Historical close prices.
@@ -60,7 +71,8 @@ def compute_covariance_oracle(prices: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: OAS-estimated covariance matrix.
     """
     try:
-        cs = risk_models.CovarianceShrinkage(prices)
+        returns = prices.pct_change().dropna()
+        cs = risk_models.CovarianceShrinkage(returns, returns_data=True)
         return cs.oracle_approximating()
     except Exception as e:
         logger.error(f"Oracle shrinkage failed, falling back to Ledoit-Wolf: {e}")
@@ -79,7 +91,7 @@ def compute_covariance(
         method (str): "ledoit_wolf" | "oracle_approx" | "identity".
 
     Returns:
-        pd.DataFrame: Estimated covariance matrix.
+        pd.DataFrame: Estimated annualised covariance matrix.
     """
     if method == "oracle_approx":
         return compute_covariance_oracle(prices)

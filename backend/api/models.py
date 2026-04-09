@@ -58,7 +58,7 @@ class PortfolioRequest(BaseModel):
     """Request to build an optimised portfolio."""
     user_id: int
     risk_score: float = Field(..., ge=1.0, le=10.0, description="Risk score 1–10")
-    selected_asset_classes: list[str] = Field(..., min_length=3, description="Min 3 asset classes")
+    selected_asset_classes: Optional[list[str]] = Field(default=None, description="Optional override — robo advisor auto-selects from risk score")
     investment_amount: float = Field(..., gt=0, description="Lump sum in GBP")
     monthly_contribution: float = Field(default=0.0, ge=0, description="Monthly recurring in GBP")
     uses_isa: bool = Field(default=False)
@@ -85,6 +85,12 @@ class PortfolioResponse(BaseModel):
     sharpe_ratio: float
     total_expense_ratio: float
     investment_amount: float
+    # One-Fund Theorem outputs
+    tangent_portfolio: Optional[dict[str, float]] = None
+    risk_allocation_alpha: Optional[float] = None
+    alpha: Optional[float] = None
+    total_return_pct: Optional[float] = 0.0
+    asset_classes_used: Optional[list[str]] = None
 
 
 # =============================================================

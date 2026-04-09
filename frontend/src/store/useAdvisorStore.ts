@@ -31,6 +31,7 @@ export interface ObjectiveInputs {
 
 export interface RiskProfile {
     user_id: number
+    name?: string
     subjective_score: number
     objective_score: number
     composite_score: number
@@ -58,6 +59,8 @@ export interface PortfolioResult {
     expected_annual_return: number
     expected_volatility: number
     sharpe_ratio: number
+    alpha?: number
+    total_return_pct?: number
     total_expense_ratio: number
     investment_amount: number
 }

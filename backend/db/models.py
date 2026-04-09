@@ -74,6 +74,8 @@ class Portfolio(Base):
     expected_return = Column(Float, nullable=True)
     expected_volatility = Column(Float, nullable=True)
     sharpe_ratio = Column(Float, nullable=True)
+    alpha = Column(Float, nullable=True)  # Excess return over risk-free
+    total_return_pct = Column(Float, default=0.0)  # Realised return since creation
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

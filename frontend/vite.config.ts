@@ -15,6 +15,8 @@ export default defineConfig({
             '/api': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
+                // Backend already mounts routes at /api, so no rewrite needed
+                // /api/portfolio → http://127.0.0.1:8000/api/portfolio ✓
             },
         },
     },

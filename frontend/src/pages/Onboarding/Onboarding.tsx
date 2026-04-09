@@ -345,9 +345,9 @@ export default function Onboarding() {
 
                             <button
                                 className="btn btn--primary btn--lg"
-                                onClick={() => navigate('/assets')}
+                                onClick={() => navigate('/invest')}
                             >
-                                Choose Asset Classes →
+                                Generate Optimized Portfolio →
                             </button>
                         </motion.div>
                     )}

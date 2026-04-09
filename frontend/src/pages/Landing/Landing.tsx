@@ -84,9 +84,9 @@ export default function Landing() {
                     </button>
                     <button
                         className="btn btn--secondary btn--lg"
-                        onClick={() => navigate('/dashboard')}
+                        onClick={() => navigate('/history')}
                     >
-                        View Dashboard
+                        View Saved Vault (History)
                     </button>
                 </motion.div>
 
