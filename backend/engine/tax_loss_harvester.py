@@ -24,6 +24,7 @@ from typing import Optional
 from datetime import datetime, timedelta
 
 from backend.engine.asset_universe import get_all_etfs
+from backend.config import UK_CGT_HIGHER_RATE
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ TLH_MIN_LOSS_GBP: float = 50.0
 # Bed-and-breakfast rule: don't re-buy same ticker within 30 days
 BED_AND_BREAKFAST_DAYS: int = 30
 
-# UK CGT annual allowance
+# UK CGT annual exempt amount (2024/25 onwards)
 UK_CGT_ALLOWANCE_GBP: float = 3000.0
 
 
@@ -63,31 +64,47 @@ def scan_for_tlh_opportunities(
     current_prices: dict[str, float],
     is_isa: bool = False,
     min_loss: float = TLH_MIN_LOSS_GBP,
+    cgt_rate: float = UK_CGT_HIGHER_RATE,
+    realised_gains_ytd: float = 0.0,
+    allowance_remaining: float = UK_CGT_ALLOWANCE_GBP,
 ) -> list[dict]:
     """
-    Scan portfolio holdings for tax-loss harvesting opportunities.
+    Scan portfolio holdings for tax-loss harvesting (TLH) opportunities.
 
     A TLH opportunity exists when:
     1. Current price < average cost basis (unrealised loss)
     2. Loss exceeds min_loss threshold
     3. A substitute ETF is available in the registry
-    4. Account is NOT an ISA (no CGT in ISA)
+    4. Account is NOT an ISA (no CGT inside an ISA)
+
+    IMPORTANT — what TLH actually does (corrected rationale):
+    Selling at a loss and buying a correlated substitute does NOT permanently
+    eliminate tax: it lowers the substitute's cost basis, so the gain is merely
+    DEFERRED. The real, bankable benefit is offsetting *currently realised gains*
+    that exceed the annual exempt amount — saving `offsettable_loss × cgt_rate`
+    this year — plus the time value of deferral. We therefore only count the
+    portion of the loss that offsets net realised gains above the allowance, and
+    label it a deferral benefit (not a permanent "saving").
 
     Parameters:
-        holdings (list[dict]): Current holdings, each with:
-            {ticker, quantity, average_cost, current_price, asset_class}
+        holdings (list[dict]): {ticker, quantity, average_cost, current_price, asset_class}
         current_prices (dict[str, float]): {ticker: latest_price}
         is_isa (bool): Whether the portfolio is in an ISA wrapper.
         min_loss (float): Minimum unrealised loss to trigger TLH.
+        cgt_rate (float): Investor's marginal CGT rate (basic 0.10 / higher 0.20).
+        realised_gains_ytd (float): Net realised capital gains so far this tax year.
+        allowance_remaining (float): Unused annual CGT exempt amount.
 
     Returns:
-        list[dict]: TLH opportunities, each with:
-            {ticker, substitute_ticker, unrealised_loss, quantity,
-             current_value, cost_basis, tax_saving_estimate}
+        list[dict]: opportunities with {..., tax_deferral_benefit}.
     """
     if is_isa:
         logger.info("ISA account — TLH not applicable (no CGT in ISA)")
         return []
+
+    # Net gains that are actually taxable after the annual exempt amount — only
+    # losses offsetting THIS are a bankable benefit this year (the rest defers).
+    taxable_gains_available = max(0.0, realised_gains_ytd - max(0.0, allowance_remaining))
 
     opportunities = []
 
@@ -119,8 +136,11 @@ def scan_for_tlh_opportunities(
             logger.debug(f"No TLH substitute for {ticker} — skipping")
             continue
 
-        # Estimate tax saving (20% CGT rate × loss)
-        tax_saving = loss_amount * 0.20
+        # Bankable benefit this year = portion of loss that offsets taxable gains
+        # (gains above the annual exempt amount), valued at the marginal CGT rate.
+        offsettable = min(loss_amount, taxable_gains_available)
+        taxable_gains_available -= offsettable
+        tax_deferral_benefit = offsettable * cgt_rate
 
         opportunities.append({
             "ticker": ticker,
@@ -132,7 +152,9 @@ def scan_for_tlh_opportunities(
             "cost_basis": round(cost_basis, 2),
             "current_value": round(current_value, 2),
             "unrealised_loss": round(-loss_amount, 2),
-            "tax_saving_estimate": round(tax_saving, 2),
+            "offsettable_loss": round(offsettable, 2),
+            "cgt_rate": cgt_rate,
+            "tax_deferral_benefit": round(tax_deferral_benefit, 2),
         })
 
     # Sort by largest loss first
@@ -140,11 +162,12 @@ def scan_for_tlh_opportunities(
 
     if opportunities:
         total_loss = sum(o["unrealised_loss"] for o in opportunities)
-        total_saving = sum(o["tax_saving_estimate"] for o in opportunities)
+        total_benefit = sum(o["tax_deferral_benefit"] for o in opportunities)
         logger.info(
             f"TLH scan: {len(opportunities)} opportunities, "
             f"total loss=£{abs(total_loss):,.2f}, "
-            f"potential tax saving=£{total_saving:,.2f}"
+            f"bankable tax benefit this year=£{total_benefit:,.2f} "
+            f"(remaining is deferral, not permanent saving)"
         )
 
     return opportunities

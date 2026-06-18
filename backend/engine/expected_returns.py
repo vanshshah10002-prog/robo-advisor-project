@@ -338,6 +338,106 @@ def adjust_for_costs(
     return adjusted
 
 
+def get_blend_expected_returns(
+    monthly_log_returns: pd.DataFrame,
+    expense_ratios: Optional[dict[str, float]] = None,
+    w_trailing: float = 0.5,
+    risk_free_rate: float = MVO_RISK_FREE_RATE,
+) -> pd.Series:
+    """
+    PRODUCTION expected-returns model (Phase 1 locked): trailing historical mean
+    blended 50/50 with the calibrated Black-Litterman equilibrium prior, on
+    monthly GBP-unhedged log returns, then cost-adjusted.
+
+    Validated in docs/OPTIMIZATION_WALKTHROUGH.md (Phase 1 hold-out gate). Uses
+    the exact `blend_trailing_bl` implementation from the eval harness to
+    guarantee parity with the validated research.
+
+    Parameters:
+        monthly_log_returns (pd.DataFrame): month-end GBP log returns per ticker.
+        expense_ratios (dict, optional): {ticker: annual_expense_ratio}.
+        w_trailing (float): blend weight on trailing mean (locked at 0.5).
+        risk_free_rate (float): annual risk-free rate.
+
+    Returns:
+        pd.Series: net-of-fee annual arithmetic expected returns per ticker,
+        clamped to EXPECTED_RETURN_CLAMP (CMA sanity bounds).
+    """
+    from backend.engine.quant_models import blend_trailing_bl
+    from backend.config import EXPECTED_RETURN_CLAMP
+
+    mu = blend_trailing_bl(
+        monthly_log_returns, w_trailing=w_trailing, risk_free_annual=risk_free_rate
+    )
+    if expense_ratios:
+        mu = adjust_for_costs(mu, expense_ratios)
+
+    # CMA sanity clamp: trailing-heavy estimates outside professional
+    # capital-market-assumption ranges are estimation error, not signal.
+    lo, hi = EXPECTED_RETURN_CLAMP
+    n_clamped = int(((mu < lo) | (mu > hi)).sum())
+    if n_clamped:
+        logger.warning(f"Clamping {n_clamped} expected returns to [{lo:.0%}, {hi:.0%}]")
+    mu = mu.clip(lo, hi)
+
+    logger.info(
+        f"Blend(trailing+BL) returns: mean={mu.mean():.4f}, "
+        f"range=[{mu.min():.4f}, {mu.max():.4f}]"
+    )
+    return mu
+
+
+def build_mu_cov(
+    tickers: list[str],
+    expense_by_ticker: Optional[dict[str, float]] = None,
+    w_trailing: float = 0.5,
+    risk_free_rate: float = MVO_RISK_FREE_RATE,
+    period_years: int = 10,
+) -> tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
+    """
+    Production input builder (Phases 0–2 integrated): fetches month-end,
+    GBP-unhedged, outer-joined log returns and returns the locked expected
+    returns (trailing+BL blend) and covariance (EWMA+Ledoit-Wolf hybrid),
+    index-aligned and ready for the optimizer.
+
+    Parameters:
+        tickers (list[str]): ETF tickers.
+        expense_by_ticker (dict, optional): {ticker: expense_ratio} for net-of-fee mu.
+        w_trailing (float): blend weight on trailing mean.
+        risk_free_rate (float): annual risk-free rate.
+        period_years (int): years of history to fetch.
+
+    Returns:
+        (mu, cov, monthly_returns): annual arithmetic E[R], annual covariance,
+        and the underlying monthly log-return panel (for regime detection).
+    """
+    from backend.data.returns import build_monthly_gbp_log_returns
+    from backend.engine.quant_models import ewma_lw_cov
+
+    monthly = build_monthly_gbp_log_returns(tickers, period_years=period_years, min_obs=24)
+    if monthly is None or monthly.shape[1] < 2:
+        raise ValueError("Insufficient monthly return data for selected ETFs")
+
+    cov = ewma_lw_cov(monthly)
+    # Defensive: a ticker whose covariance column is NaN/Inf (e.g. no
+    # overlapping complete-case rows) would crash the solver — drop it.
+    bad = cov.columns[~np.isfinite(cov.values).all(axis=0)].tolist()
+    if bad:
+        logger.warning(f"Dropping {len(bad)} tickers with non-finite covariance: {bad}")
+        keep = [c for c in cov.columns if c not in bad]
+        cov = cov.loc[keep, keep]
+
+    mu = get_blend_expected_returns(monthly, expense_by_ticker, w_trailing, risk_free_rate)
+
+    # Align mu and cov on common tickers
+    common = [t for t in mu.index if t in cov.columns]
+    if len(common) < 2:
+        raise ValueError("Fewer than 2 tickers shared between returns and covariance")
+    mu = mu.reindex(common).dropna()
+    cov = cov.loc[mu.index, mu.index]
+    return mu, cov, monthly
+
+
 def get_expected_returns(
     prices: pd.DataFrame,
     cov_matrix: pd.DataFrame,

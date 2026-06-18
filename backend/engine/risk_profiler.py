@@ -138,37 +138,48 @@ QUIZ_QUESTIONS = [
 ]
 
 
+# Questions that measure risk WILLINGNESS (psychometric attitude), as opposed to
+# capacity/need. Capacity items (Q3 horizon, Q4 net-worth %, Q6 emergency fund,
+# Q7 income stability) are EXCLUDED here because they are already captured by the
+# objective capacity score — counting them in both would double-count capacity.
+WILLINGNESS_QUESTION_IDS: tuple[int, ...] = (1, 2, 5, 8, 9, 10)
+
+
 def compute_subjective_score(answers: list[dict]) -> float:
     """
-    Score the 10-question subjective quiz.
+    Score the subjective quiz as risk WILLINGNESS only.
 
-    Each question is scored 1–5 on a Likert scale.
-    For 'inverted' questions (e.g., Q4 — higher net worth % = more exposure = less capacity),
-    the score is flipped: score = 6 - answer.
-
-    The raw total (10–50) is normalised to a 1–10 scale.
+    Only the willingness questions (WILLINGNESS_QUESTION_IDS) are scored, so
+    capacity items are not double-counted (they live in the objective score).
+    Each willingness question is 1–5; the total is normalised to a 1–10 scale
+    using only the willingness questions actually answered.
 
     Parameters:
         answers (list[dict]): List of {"question_id": int, "answer": int (1-5)}.
 
     Returns:
-        float: Subjective risk score on a 1–10 scale.
+        float: Subjective (willingness) risk score on a 1–10 scale.
     """
     question_lookup = {q["id"]: q for q in QUIZ_QUESTIONS}
     total = 0.0
+    n = 0
 
     for ans in answers:
         qid = ans["question_id"]
+        if qid not in WILLINGNESS_QUESTION_IDS:
+            continue  # capacity/need items are handled by the objective score
         raw = ans["answer"]
         question = question_lookup.get(qid, {})
-
         if question.get("inverted", False):
-            raw = 6 - raw  # Invert: 5→1, 4→2, etc.
-
+            raw = 6 - raw
         total += raw
+        n += 1
 
-    # Normalise: 10 (all 1s) → 1.0, 50 (all 5s) → 10.0
-    normalised = 1.0 + (total - 10) / (50 - 10) * 9.0
+    if n == 0:
+        return 5.0  # neutral default if no willingness answers provided
+
+    # Normalise: all 1s → 1.0, all 5s → 10.0 (range n..5n)
+    normalised = 1.0 + (total - n) / (5 * n - n) * 9.0
     return round(max(1.0, min(10.0, normalised)), 2)
 
 
@@ -275,21 +286,25 @@ def compute_composite_score(
     subjective: float,
     objective: float,
     time_horizon_years: int,
+    has_inconsistency: bool = False,
 ) -> float:
     """
-    Blend subjective and objective scores into a final composite risk score.
+    Blend subjective (willingness) and objective (capacity) scores into a final
+    composite risk score, taking the suitable risk as the LOWER of willingness
+    and ability where they disagree (FCA-style).
 
     Algorithm:
     1. Weighted blend: composite = subj * w_subj + obj * w_obj
-    2. If conservative_bias is enabled AND |subj - obj| > 2:
-       composite = min(subj, obj) + 0.5  (Wealthfront approach)
-    3. If risk_decay is enabled AND time_horizon < threshold:
-       cap the maximum score
+    2. If conservative_bias AND |subj - obj| > 2: composite = min(subj, obj) + 0.5
+    3. If answers are internally inconsistent: apply a 1-point conservative
+       penalty (contradictory answers → err on the side of caution).
+    4. If risk_decay AND time_horizon < threshold: cap the maximum score.
 
     Parameters:
-        subjective (float): Subjective quiz score (1–10).
-        objective (float): Objective capacity score (1–10).
+        subjective (float): Willingness score (1–10).
+        objective (float): Capacity score (1–10).
         time_horizon_years (int): Investment horizon in years.
+        has_inconsistency (bool): True if quiz answers contradict each other.
 
     Returns:
         float: Final composite risk score (1–10).
@@ -305,7 +320,11 @@ def compute_composite_score(
     if conservative_bias and abs(subjective - objective) > 2.0:
         composite = min(subjective, objective) + 0.5
 
-    # Step 3: Risk score decay for short time horizons
+    # Step 3: Inconsistency penalty — contradictory answers reduce risk taken
+    if has_inconsistency:
+        composite = composite - 1.0
+
+    # Step 4: Risk score decay for short time horizons
     if RISK_DECAY_ENABLED and time_horizon_years < RISK_DECAY_HORIZON_YEARS:
         composite = min(composite, float(RISK_DECAY_MAX_RISK))
 
@@ -337,19 +356,120 @@ def get_risk_description(score: float) -> str:
         str: Description paragraph.
     """
     rounded = round(score)
+    # NOTE: these must describe what the engine ACTUALLY builds under the
+    # mandate caps (term bonds ≤ 20%, gold ≤ 10%): de-risking is delivered via
+    # the cash/ultrashort sleeve, not via large bond allocations.
     descriptions = {
-        1: "Your profile is highly conservative. You prioritise capital preservation above all else. Your portfolio will lean heavily toward UK Gilts, bonds, and cash equivalents with minimal equity exposure.",
-        2: "Your profile is very conservative. You seek stability with only modest growth. Your portfolio will be bond-heavy with a small allocation to diversified equities.",
-        3: "Your profile is conservative. You want steady, reliable returns with limited downside risk. Expect a majority bond allocation with some equity diversification.",
-        4: "Your profile is moderately conservative. You accept some volatility for better returns. Your portfolio balances bonds and equities, tilting slightly toward fixed income.",
-        5: "Your profile is balanced. You seek a healthy mix of growth and stability. Your portfolio will maintain roughly equal exposure to equities and fixed income.",
-        6: "Your profile is moderately aggressive. You favour growth and accept meaningful short-term fluctuations. Equity allocation will outweigh bonds.",
-        7: "Your profile is growth-oriented. You are comfortable with significant volatility for superior long-term returns. Your portfolio will be equity-heavy.",
-        8: "Your profile is aggressively growth-oriented. You embrace market swings and focus on maximum capital appreciation over the long term.",
-        9: "Your profile is high-risk. You are very comfortable with large drawdowns and expect to hold for the long term. Near-maximum equity allocation.",
-        10: "Your profile seeks maximum growth. You accept the highest level of volatility for the possibility of the greatest returns. Your portfolio will be almost entirely equity-focused.",
+        1: "Your profile is highly conservative. You prioritise capital preservation. Your portfolio will hold a large cash/ultrashort sleeve plus gilts (within the 20% bond mandate cap) and a modest, diversified equity allocation, targeting the lowest volatility the mandate permits.",
+        2: "Your profile is very conservative. Expect a substantial cash/ultrashort allocation, capped bonds and gold, and a minority equity allocation for modest growth.",
+        3: "Your profile is conservative. Your portfolio blends a meaningful cash/ultrashort sleeve with capped bonds and a moderate, diversified equity allocation.",
+        4: "Your profile is moderately conservative. The cash sleeve shrinks and diversified equities take a larger share, with bonds and gold held within their mandate caps.",
+        5: "Your profile is balanced. Expect a mid-ladder volatility target: a majority diversified-equity allocation complemented by cash, capped bonds, and gold.",
+        6: "Your profile is moderately aggressive. Equities dominate, with smaller defensive sleeves; volatility targets sit above the middle of the ladder.",
+        7: "Your profile is growth-oriented. You are comfortable with significant volatility. Your portfolio is equity-heavy with limited defensive ballast.",
+        8: "Your profile is aggressively growth-oriented. You embrace market swings; defensive sleeves are minimal and the volatility target is near the top of the ladder.",
+        9: "Your profile is high-risk. Near-maximum equity exposure with only residual defensive holdings.",
+        10: "Your profile seeks maximum growth. The portfolio sits at the top of the volatility ladder: effectively all growth assets, with gold capped at 10%.",
     }
     return descriptions.get(rounded, "Your risk profile has been assessed.")
+
+
+# =============================================================
+# MINIMAL ONBOARDING (fewest questions — 3)
+# =============================================================
+# Responsible risk profiling needs willingness + capacity (horizon) + a capacity
+# safety check. This collapses the 10-question quiz + 7 financial fields into 3
+# questions while still covering FCA-style suitability (willingness/ability).
+
+MINIMAL_QUIZ_QUESTIONS = [
+    {
+        "id": 1,
+        "key": "loss_reaction",
+        "text": "If your portfolio dropped 20% in a month, what would you do?",
+        "options": [
+            "Sell everything",
+            "Sell some holdings",
+            "Hold and wait",
+            "Buy a little more",
+            "Buy aggressively — it's on sale",
+        ],
+    },
+    {
+        "id": 2,
+        "key": "time_horizon_choice",
+        "text": "When will you need this money?",
+        "options": [
+            "Within 1 year",
+            "1–3 years",
+            "3–5 years",
+            "5–10 years",
+            "10+ years",
+        ],
+    },
+    {
+        "id": 3,
+        "key": "financial_cushion",
+        "text": "How financially secure is this investment? (savings buffer & share of wealth)",
+        "options": [
+            "No emergency fund; most of my wealth",
+            "Small buffer; a large share",
+            "Some buffer; a moderate share",
+            "6+ months buffer; a modest share",
+            "Strong buffer; a small share of wealth",
+        ],
+    },
+]
+
+# Representative horizon (years) for each time_horizon_choice (1–5)
+_HORIZON_YEARS_BY_CHOICE = {1: 1, 2: 3, 3: 5, 4: 8, 5: 15}
+
+
+def _scale_5_to_10(value: int) -> float:
+    """Map a 1–5 Likert answer onto the 1–10 risk scale."""
+    return 1.0 + (float(value) - 1.0) / 4.0 * 9.0
+
+
+def profile_user_minimal(
+    loss_reaction: int,
+    time_horizon_choice: int,
+    financial_cushion: int,
+    investment_amount: float = 0.0,
+) -> dict:
+    """
+    Minimal 3-question risk profile.
+
+    - Willingness (subjective) = loss_reaction.
+    - Capacity (objective)     = mean(time horizon, financial cushion).
+    - Composite via the existing blend (conservative bias + short-horizon decay).
+
+    Parameters:
+        loss_reaction (int): 1–5 reaction to a 20% drawdown.
+        time_horizon_choice (int): 1–5 horizon bucket.
+        financial_cushion (int): 1–5 savings buffer / share-of-wealth security.
+        investment_amount (float): GBP (carried through for portfolio building).
+
+    Returns:
+        dict: same shape as `profile_user` (subjective/objective/composite/band/...).
+    """
+    horizon_years = _HORIZON_YEARS_BY_CHOICE.get(time_horizon_choice, 5)
+    subjective = round(_scale_5_to_10(loss_reaction), 2)
+    objective = round(
+        (_scale_5_to_10(time_horizon_choice) + _scale_5_to_10(financial_cushion)) / 2.0, 2
+    )
+    composite = compute_composite_score(subjective, objective, horizon_years)
+    band = get_risk_band(composite)
+    description = get_risk_description(composite)
+
+    return {
+        "subjective_score": subjective,
+        "objective_score": objective,
+        "composite_score": composite,
+        "risk_band": band,
+        "risk_score_int": round(composite),
+        "description": description,
+        "has_inconsistency": False,
+        "time_horizon_years": horizon_years,
+    }
 
 
 def profile_user(
@@ -387,10 +507,12 @@ def profile_user(
         monthly_income, monthly_expenses, total_investable_assets,
         investment_amount, employment_type, has_emergency_fund,
     )
-    composite = compute_composite_score(subjective, objective, time_horizon_years)
+    inconsistency = detect_inconsistency(quiz_answers)
+    composite = compute_composite_score(
+        subjective, objective, time_horizon_years, has_inconsistency=inconsistency,
+    )
     band = get_risk_band(composite)
     description = get_risk_description(composite)
-    inconsistency = detect_inconsistency(quiz_answers)
 
     return {
         "subjective_score": subjective,

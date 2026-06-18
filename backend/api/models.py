@@ -37,6 +37,16 @@ class RiskProfileRequest(BaseModel):
     uses_isa: bool = Field(default=False, description="Will invest via ISA?")
 
 
+class QuickRiskRequest(BaseModel):
+    """Minimal 3-question risk profile submission (fastest onboarding)."""
+    name: str = Field(..., min_length=1, description="User's name")
+    loss_reaction: int = Field(..., ge=1, le=5, description="Reaction to a 20% drop (1–5)")
+    time_horizon_choice: int = Field(..., ge=1, le=5, description="When money is needed (1–5)")
+    financial_cushion: int = Field(..., ge=1, le=5, description="Savings buffer / share of wealth (1–5)")
+    investment_amount: float = Field(..., gt=0, description="Amount to invest in GBP")
+    uses_isa: bool = Field(default=False, description="Will invest via ISA?")
+
+
 class RiskProfileResponse(BaseModel):
     """Risk profile result returned to client."""
     user_id: int

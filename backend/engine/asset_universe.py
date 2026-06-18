@@ -11,6 +11,8 @@ import json
 import os
 from typing import Optional
 
+from backend.config import UK_RETAIL_UCITS_ONLY
+
 _REGISTRY_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "data", "uk_etf_registry.json"
 )
@@ -63,17 +65,32 @@ def get_etf_by_ticker(ticker: str) -> Optional[dict]:
     return None
 
 
-def get_etfs_by_asset_class(asset_class: str) -> list[dict]:
+def get_etfs_by_asset_class(asset_class: str, ucits_only: bool = UK_RETAIL_UCITS_ONLY) -> list[dict]:
     """
     Get all ETFs belonging to a given asset class.
 
+    When `ucits_only` is True (default, per UK_RETAIL_UCITS_ONLY), funds not
+    investable by UK retail (e.g. NSE-listed .NS lines) are excluded — they
+    cannot be held in an ISA/GIA under PRIIPs rules. LSE-listed physical
+    gold/silver ETCs are technically not UCITS funds but ARE ISA-eligible
+    with PRIIPs KIDs, so the registry marks them `uk_retail_investable`.
+
     Parameters:
         asset_class (str): Asset class identifier (e.g., "uk_equity").
+        ucits_only (bool): Restrict to funds investable by UK retail.
 
     Returns:
         list[dict]: Matching ETFs sorted by expense ratio (lowest first).
     """
-    matches = [etf for etf in get_all_etfs() if etf["asset_class"] == asset_class]
+    matches = [
+        etf for etf in get_all_etfs()
+        if etf["asset_class"] == asset_class and not etf.get("delisted", False)
+    ]
+    if ucits_only:
+        matches = [
+            etf for etf in matches
+            if etf.get("ucits", False) or etf.get("uk_retail_investable", False)
+        ]
     return sorted(matches, key=lambda e: e["expense_ratio"])
 
 

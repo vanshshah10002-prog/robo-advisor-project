@@ -37,101 +37,188 @@ from backend.config import (
     RISK_DECAY_ENABLED,
     RISK_DECAY_HORIZON_YEARS,
     RISK_DECAY_MAX_RISK,
+    ASSET_GROUP_CAPS,
+    BOND_ASSET_CLASSES,
+    GOLD_ASSET_CLASSES,
+    CASH_ASSET_CLASSES,
+    VOL_CALIBRATION_MULTIPLIER,
 )
-from backend.engine.covariance import compute_covariance, detect_high_correlation_regime
-from backend.engine.expected_returns import get_expected_returns
-from backend.engine.asset_universe import get_ticker_map, get_expense_ratios
+from backend.engine.covariance import detect_volatility_regime
+from backend.engine.expected_returns import build_mu_cov
+from backend.engine.asset_universe import (
+    get_ticker_map,
+    get_expense_ratios,
+    get_primary_etf_for_class,
+)
 from backend.data.market_data import build_close_price_matrix
+from backend.data.rates import get_risk_free_rate
 
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# RISK-BASED ASSET CLASS SELECTION
+# SINGLE STRATEGIC UNIVERSE (Phase 3; revised in PM overhaul; now DYNAMIC)
 # =============================================================================
+# One universe for ALL risk levels; risk is expressed via a target-volatility
+# ladder on the constrained efficient frontier (Betterment-style), not by
+# swapping universes. cash_equivalent (ultrashort GBP, ~0.5% vol) is the
+# de-risking sleeve — exempt from the 20% term-bond cap so conservative
+# portfolios are actually conservative.
+#
+# The universe is built dynamically from the FULL ETF registry: every asset
+# class whose cheapest fund is UK-retail investable (UCITS, or an ISA-eligible
+# LSE ETC for gold/silver) is included. Non-investable classes (NSE-listed .NS
+# lines) resolve to no ticker and drop out; India exposure comes via the UCITS
+# FLXI.L under indian_large_cap. Short-history funds are filtered downstream
+# by the min_obs guard in the returns builder, and per-class ALLOCATION_
+# CONSTRAINTS plus the bond/gold group caps bound every member.
 
-# Maps risk score ranges to appropriate asset class mixes
-# The robo advisor selects these — the user provides risk tolerance, not classes
-RISK_ASSET_PROFILES: dict[str, list[str]] = {
-    # Conservative: primarily bonds + UK equity + gold + Indian bonds
-    "conservative": [
-        "uk_equity", "global_equity", "uk_gilts", "uk_bonds",
-        "uk_inflation_linked", "global_bonds", "corporate_bonds",
-        "commodities_gold", "indian_bonds", "indian_gold"
-    ],
-    # Balanced: diversified equity/bond mix + REITs + commodities + Indian large cap
-    "balanced": [
-        "uk_equity", "uk_mid_cap", "global_equity", "us_equity",
-        "emerging_market_equity", "europe_equity",
-        "uk_gilts", "uk_bonds", "global_bonds", "corporate_bonds",
-        "commodities_gold", "uk_reits",
-        "indian_large_cap", "indian_bonds", "indian_sector_financials", "indian_gold"
-    ],
-    # Growth: equity-heavy with some bonds + alternatives + Indian mid/small
-    "growth": [
-        "uk_equity", "uk_mid_cap", "global_equity", "us_equity",
-        "us_tech", "emerging_market_equity", "japan_equity",
-        "europe_equity", "asia_pacific_equity",
-        "uk_gilts", "global_bonds",
-        "commodities_gold", "commodities_broad",
-        "uk_reits", "global_reits",
-        "global_small_cap", "global_dividend",
-        "indian_large_cap", "indian_mid_cap", "indian_sector_it",
-        "indian_arbitrage_us_tech", "indian_arbitrage_us_equity"
-    ],
-    # Aggressive: maximum equity exposure + alternatives + Indian high risk
-    "aggressive": [
-        "uk_equity", "uk_mid_cap", "global_equity", "us_equity",
-        "us_tech", "emerging_market_equity", "japan_equity",
-        "europe_equity", "asia_pacific_equity",
-        "uk_gilts",
-        "commodities_gold", "commodities_broad",
-        "uk_reits", "global_reits",
-        "infrastructure",
-        "global_small_cap", "global_dividend",
-        "global_value", "global_momentum", "global_quality",
-        "indian_large_cap", "indian_mid_cap", "indian_small_cap",
-        "indian_factor_momentum", "indian_arbitrage_us_tech", "indian_arbitrage_us_equity"
-    ],
-}
+
+def _build_strategic_universe() -> list[str]:
+    """All registry asset classes that resolve to an investable primary ETF."""
+    universe = [ac for ac in ASSET_CLASSES if get_primary_etf_for_class(ac) is not None]
+    logger.info(f"Dynamic strategic universe: {len(universe)} investable asset classes")
+    return universe
+
+
+STRATEGIC_UNIVERSE: list[str] = _build_strategic_universe()
 
 
 def select_asset_classes_for_risk(risk_score: float) -> list[str]:
     """
-    Automatically select appropriate asset classes for a given risk score.
-    The ROBO ADVISOR makes this decision — not the user.
+    Return the single strategic asset-class universe used for ALL risk levels.
 
-    Risk mapping:
-        1-3  → conservative (bonds-heavy)
-        4-5  → balanced
-        6-7  → growth (equity-heavy)
-        8-10 → aggressive (maximum equity, alternatives)
+    Phase 3 change: risk is expressed via the two-fund glide (see
+    `build_two_fund_portfolio`), NOT by swapping the universe. The `risk_score`
+    argument is retained for signature compatibility but no longer alters the set.
 
     Parameters:
-        risk_score (float): Composite risk score 1–10.
+        risk_score (float): Composite risk score 1–10 (unused; kept for compat).
 
     Returns:
-        list[str]: Selected asset class identifiers.
+        list[str]: The strategic asset-class universe.
     """
-    if risk_score <= 3:
-        profile = "conservative"
-    elif risk_score <= 5:
-        profile = "balanced"
-    elif risk_score <= 7:
-        profile = "growth"
-    else:
-        profile = "aggressive"
+    logger.info(f"Strategic universe: {len(STRATEGIC_UNIVERSE)} asset classes (risk={risk_score})")
+    return list(STRATEGIC_UNIVERSE)
 
-    selected = RISK_ASSET_PROFILES[profile]
-    logger.info(
-        f"Risk score {risk_score} → profile '{profile}' → {len(selected)} asset classes"
+
+def build_two_fund_portfolio(
+    risk_score: float,
+    expected_returns: pd.Series,
+    cov_matrix: pd.DataFrame,
+    weight_bounds: list[tuple[float, float]],
+    risk_free_rate: float = MVO_RISK_FREE_RATE,
+    asset_class_map: Optional[dict[str, str]] = None,
+) -> dict:
+    """
+    Express risk via the Two-Fund Separation theorem: every efficient portfolio
+    is a combination of two frontier funds. We use:
+        - DEFENSIVE fund = global minimum-variance portfolio (bonds/gold heavy)
+        - GROWTH fund    = tangency / max-Sharpe portfolio
+    and blend them by α = risk_score / 10:
+        w = α · w_growth + (1 − α) · w_defensive
+
+    This guarantees a MONOTONIC risk dial and ensures low-risk portfolios hold
+    real defensive assets (the min-variance fund ignores returns, so bonds
+    appear even after a weak bond decade — unlike pure target-vol MVO).
+
+    Parameters:
+        risk_score (float): 1–10.
+        expected_returns (pd.Series): annual expected returns.
+        cov_matrix (pd.DataFrame): annual covariance.
+        weight_bounds (list): per-asset (min, max) bounds.
+        risk_free_rate (float): annual risk-free rate.
+
+    Returns:
+        dict: {"weights", "defensive_fund", "growth_fund", "alpha"}.
+    """
+    alpha = float(np.clip(risk_score / 10.0, 0.0, 1.0))
+
+    # Build group caps (bonds ≤ 20%, gold ≤ 10%) if an asset-class map is given
+    sector_mapper = sector_lower = sector_upper = None
+    if asset_class_map is not None:
+        sector_mapper, sector_lower, sector_upper = build_sector_caps(
+            list(expected_returns.index), asset_class_map
+        )
+
+    # Defensive fund: global minimum variance (with group caps)
+    try:
+        ef_def = EfficientFrontier(expected_returns, cov_matrix, weight_bounds=weight_bounds)
+        _apply_sector_caps(ef_def, sector_mapper, sector_lower, sector_upper)
+        ef_def.min_volatility()
+        w_def = dict(ef_def.clean_weights())
+    except Exception as e:
+        logger.warning(f"min_volatility failed ({e}); inverse-variance defensive fund")
+        inv = 1.0 / np.diag(cov_matrix.values)
+        w_def = {t: float(inv[i] / inv.sum()) for i, t in enumerate(cov_matrix.columns)}
+
+    # Growth fund: tangency (max Sharpe), with the same group caps
+    w_growth = compute_tangent_portfolio(
+        expected_returns, cov_matrix, weight_bounds, risk_free_rate,
+        sector_mapper=sector_mapper, sector_lower=sector_lower, sector_upper=sector_upper,
     )
-    return selected
+
+    tickers = list(expected_returns.index)
+    blended = {
+        t: alpha * w_growth.get(t, 0.0) + (1.0 - alpha) * w_def.get(t, 0.0)
+        for t in tickers
+    }
+    total = sum(blended.values())
+    if total > 0:
+        blended = {k: v / total for k, v in blended.items() if v / total > 1e-4}
+
+    logger.info(f"Two-fund glide: risk={risk_score} → α={alpha:.2f} "
+                f"({sum(1 for w in blended.values() if w > 0.001)} positions)")
+    return {
+        "weights": blended,
+        "defensive_fund": w_def,
+        "growth_fund": dict(w_growth),
+        "alpha": alpha,
+    }
 
 
 # =============================================================================
 # WEIGHT BOUNDS
 # =============================================================================
+
+def build_sector_caps(
+    tickers: list[str],
+    asset_class_map: dict[str, str],
+) -> tuple[dict[str, str], dict[str, float], dict[str, float]]:
+    """
+    Build pypfopt sector-constraint inputs enforcing group caps (bonds ≤ 20%,
+    gold ≤ 10%) across all members, regardless of per-asset bounds.
+
+    Parameters:
+        tickers (list[str]): Ordered tickers in the portfolio.
+        asset_class_map (dict[str, str]): {ticker: asset_class}.
+
+    Returns:
+        (sector_mapper, sector_lower, sector_upper):
+            sector_mapper {ticker: group}, and lower/upper {group: weight}.
+            Only groups actually present among the tickers are constrained.
+    """
+    mapper: dict[str, str] = {}
+    for t in tickers:
+        ac = asset_class_map.get(t, "")
+        if ac in BOND_ASSET_CLASSES:
+            mapper[t] = "bonds"
+        elif ac in GOLD_ASSET_CLASSES:
+            mapper[t] = "gold"
+        else:
+            mapper[t] = "other"
+
+    present = set(mapper.values())
+    upper = {g: c for g, c in ASSET_GROUP_CAPS.items() if g in present}
+    lower = {g: 0.0 for g in upper}
+    return mapper, lower, upper
+
+
+def _apply_sector_caps(ef, sector_mapper, sector_lower, sector_upper) -> None:
+    """Attach group caps to an EfficientFrontier instance (no-op if none)."""
+    if sector_mapper and sector_upper:
+        ef.add_sector_constraints(sector_mapper, sector_lower, sector_upper)
+
 
 def _get_weight_bounds(
     tickers: list[str],
@@ -164,6 +251,9 @@ def compute_tangent_portfolio(
     cov_matrix: pd.DataFrame,
     weight_bounds: list[tuple[float, float]],
     risk_free_rate: float = MVO_RISK_FREE_RATE,
+    sector_mapper: Optional[dict[str, str]] = None,
+    sector_lower: Optional[dict[str, float]] = None,
+    sector_upper: Optional[dict[str, float]] = None,
 ) -> dict[str, float]:
     """
     Compute the TANGENT portfolio — the single fund F of risky assets that
@@ -196,6 +286,7 @@ def compute_tangent_portfolio(
             cov_matrix,
             weight_bounds=weight_bounds,
         )
+        _apply_sector_caps(ef, sector_mapper, sector_lower, sector_upper)
         ef.max_sharpe(risk_free_rate=risk_free_rate)
         weights = ef.clean_weights()
         logger.info(f"Tangent portfolio computed — max Sharpe weights: "
@@ -210,6 +301,7 @@ def compute_tangent_portfolio(
                 cov_matrix,
                 weight_bounds=weight_bounds,
             )
+            _apply_sector_caps(ef2, sector_mapper, sector_lower, sector_upper)
             ef2.min_volatility()
             weights = ef2.clean_weights()
             logger.info("Using min-volatility portfolio as tangent proxy")
@@ -227,59 +319,210 @@ def compute_tangent_portfolio(
 # RISK TARGETING ON THE EFFICIENT FRONTIER
 # =============================================================================
 
-def get_target_volatility(risk_score: float) -> float:
+def _max_return_corner(
+    expected_returns: pd.Series,
+    weight_bounds: list[tuple[float, float]],
+    sector_mapper: Optional[dict[str, str]],
+    sector_upper: Optional[dict[str, float]],
+) -> pd.Series:
     """
-    Map Risk Score 1-10 to a Target Volatility percentage.
-    Risk 1 (Conservative)  ≈ 5% annual volatility
-    Risk 5 (Balanced)      ≈ 12% annual volatility
-    Risk 10 (Aggressive)   ≈ 22% annual volatility
-    """
-    # Linear interpolation between 5% and 22%
-    min_vol, max_vol = 0.05, 0.22
-    target = min_vol + (float(risk_score) - 1.0) / 9.0 * (max_vol - min_vol)
-    return round(target, 4)
-
-
-def select_target_risk_portfolio(
-    frontier_points: list[dict],
-    risk_score: float,
-    investment_horizon_years: int = 10,
-) -> dict[str, float]:
-    """
-    Select the portfolio point on the efficient frontier closest to the target volatility.
-    The ROBO ADVISOR matches the risk profile to the MPT-optimal weights.
-
-    Parameters:
-        frontier_points (list[dict]): E.F. points sorted by volatility.
-        risk_score (float): 1-10.
-        investment_horizon_years (int): Time horizon.
+    Exact greedy solution of the max-return LP under box bounds + group caps:
+    fill assets in descending E[R], respecting per-asset max and the remaining
+    group capacity, until weights sum to 1. (Greedy is optimal here because
+    each asset belongs to exactly one group — a continuous knapsack with
+    nested capacity constraints.)
 
     Returns:
-        dict[str, float]: Chosen ticker weights.
+        pd.Series: weights of the maximum-return corner portfolio.
     """
-    if not frontier_points:
-        return {}
+    tickers = list(expected_returns.index)
+    ub = {t: weight_bounds[i][1] for i, t in enumerate(tickers)}
+    group_of = sector_mapper or {t: "other" for t in tickers}
+    group_left = dict(sector_upper or {})
 
-    # Target Volatility from Risk Score
-    target_vol = get_target_volatility(risk_score)
-
-    # Find the point in frontier closest to target_vol
-    # frontier_points is already sorted by volatility
-    best_match = frontier_points[0]
-    min_diff = float('inf')
-
-    for point in frontier_points:
-        diff = abs(point["volatility"] - target_vol)
-        if diff < min_diff:
-            min_diff = diff
-            best_match = point
-        else:
-            # Since it's sorted, if diff start increasing, we found our local min
+    w = {t: 0.0 for t in tickers}
+    remaining = 1.0
+    for t in sorted(tickers, key=lambda x: -float(expected_returns[x])):
+        if remaining <= 1e-12:
             break
+        g = group_of.get(t, "other")
+        cap_g = group_left.get(g, 1.0)
+        take = min(ub.get(t, 1.0), remaining, cap_g)
+        if take <= 0:
+            continue
+        w[t] = take
+        remaining -= take
+        if g in group_left:
+            group_left[g] -= take
 
-    logger.info(f"Risk Score {risk_score} -> Target Vol {target_vol:.2%} "
-                f"-> Selected Point Vol {best_match['volatility']:.2%}")
-    return best_match["weights"]
+    total = sum(w.values())
+    if total < 0.999:
+        logger.warning(f"Max-return corner only fills {total:.3f} of weight (caps too tight)")
+    return pd.Series(w)
+
+
+def build_risk_targeted_portfolio(
+    risk_score: float,
+    expected_returns: pd.Series,
+    cov_matrix: pd.DataFrame,
+    weight_bounds: list[tuple[float, float]],
+    risk_free_rate: float = MVO_RISK_FREE_RATE,
+    asset_class_map: Optional[dict[str, str]] = None,
+) -> dict:
+    """
+    PRODUCTION risk mapping (PM overhaul): a target-volatility ladder solved
+    directly ON the constrained efficient frontier — the Betterment approach
+    ("expected returns are maximized for target volatilities assigned to each
+    risk level").
+
+    Method:
+        σ_min = vol of the constrained minimum-variance portfolio
+        σ_max = vol of the constrained maximum-return corner (greedy LP)
+        σ_target(risk) = σ_min + (risk−1)/9 · (σ_max − σ_min)
+        weights = EfficientFrontier.efficient_risk(σ_target)   [caps applied]
+
+    This is monotone in risk by construction AND efficient under the
+    constraints — unlike the previous α-blend of two frontier funds, which is
+    generally interior to the constrained frontier.
+
+    Falls back to the two-fund α-blend if the solver fails.
+
+    Returns:
+        dict: {"weights", "target_volatility", "sigma_min", "sigma_max",
+               "growth_fund", "alpha"}.
+    """
+    risk_score = float(np.clip(risk_score, 1.0, 10.0))
+
+    sector_mapper = sector_lower = sector_upper = None
+    if asset_class_map is not None:
+        sector_mapper, sector_lower, sector_upper = build_sector_caps(
+            list(expected_returns.index), asset_class_map
+        )
+
+    def _vol(w: pd.Series) -> float:
+        w = w.reindex(cov_matrix.columns).fillna(0.0)
+        return float(np.sqrt(w.values @ cov_matrix.values @ w.values))
+
+    # σ_min from constrained min-variance
+    try:
+        ef_min = EfficientFrontier(expected_returns, cov_matrix, weight_bounds=weight_bounds)
+        _apply_sector_caps(ef_min, sector_mapper, sector_lower, sector_upper)
+        ef_min.min_volatility()
+        w_min = pd.Series(ef_min.clean_weights())
+        sigma_min = _vol(w_min)
+    except Exception as e:
+        logger.warning(f"min_volatility failed ({e}); falling back to two-fund blend")
+        return build_two_fund_portfolio(
+            risk_score, expected_returns, cov_matrix, weight_bounds,
+            risk_free_rate, asset_class_map,
+        )
+
+    # σ_max from the max-return corner under the same constraints
+    w_corner = _max_return_corner(expected_returns, weight_bounds, sector_mapper, sector_upper)
+    sigma_max = _vol(w_corner)
+    if sigma_max <= sigma_min:
+        sigma_max = sigma_min * 1.5  # degenerate guard
+
+    # Linear vol ladder
+    sigma_target = sigma_min + (risk_score - 1.0) / 9.0 * (sigma_max - sigma_min)
+    sigma_target = float(np.clip(sigma_target, sigma_min * 1.0001, sigma_max * 0.9999))
+
+    # Growth fund (tangency) retained for reporting
+    w_growth = compute_tangent_portfolio(
+        expected_returns, cov_matrix, weight_bounds, risk_free_rate,
+        sector_mapper=sector_mapper, sector_lower=sector_lower, sector_upper=sector_upper,
+    )
+
+    # Solve max-return at the target volatility on the constrained frontier
+    weights = None
+    if risk_score <= 1.0 + 1e-9:
+        weights = {t: float(v) for t, v in w_min.items()}
+    else:
+        try:
+            from pypfopt import objective_functions
+            ef = EfficientFrontier(expected_returns, cov_matrix, weight_bounds=weight_bounds)
+            _apply_sector_caps(ef, sector_mapper, sector_lower, sector_upper)
+            # L2 regularization spreads weight across assets (pypfopt's
+            # documented remedy for corner solutions) — prevents 3-position
+            # portfolios when clamped expected returns tie at the cap.
+            ef.add_objective(objective_functions.L2_reg, gamma=0.1)
+            ef.efficient_risk(target_volatility=sigma_target)
+            weights = dict(ef.clean_weights())
+        except Exception as e:
+            logger.warning(f"efficient_risk(σ={sigma_target:.3f}) failed ({e}); two-fund fallback")
+            return build_two_fund_portfolio(
+                risk_score, expected_returns, cov_matrix, weight_bounds,
+                risk_free_rate, asset_class_map,
+            )
+
+    total = sum(weights.values())
+    if total > 0:
+        weights = {k: v / total for k, v in weights.items() if v / total > 1e-4}
+
+    logger.info(
+        f"Risk {risk_score} → σ_target={sigma_target:.2%} "
+        f"(ladder [{sigma_min:.2%}, {sigma_max:.2%}]), "
+        f"{sum(1 for w in weights.values() if w > 0.001)} positions"
+    )
+    return {
+        "weights": weights,
+        "target_volatility": round(sigma_target, 4),
+        "sigma_min": round(sigma_min, 4),
+        "sigma_max": round(sigma_max, 4),
+        "growth_fund": dict(w_growth),
+        "alpha": risk_score / 10.0,
+    }
+
+
+def apply_crisis_buffer(
+    weights: dict[str, float],
+    haven_ticker: str,
+    asset_class_map: dict[str, str],
+    buffer: float = CRISIS_CASH_BUFFER,
+) -> dict[str, float]:
+    """
+    Shift `buffer` of the portfolio into the haven asset during a crisis
+    regime, WITHOUT violating the group caps (the old implementation could
+    push bonds above the 20% mandate cap).
+
+    If the haven is a bond-class asset, the shift is limited to the remaining
+    bond-cap headroom. Cash havens (cash_equivalent) are exempt by design.
+    Reduction is taken proportionally from non-haven positions; output sums to 1.
+
+    Returns:
+        dict[str, float]: adjusted weights (new dict; input not mutated).
+    """
+    adjusted = dict(weights)
+    haven_ac = asset_class_map.get(haven_ticker, "")
+
+    effective_buffer = buffer
+    if haven_ac in BOND_ASSET_CLASSES:
+        bond_total = sum(
+            w for t, w in adjusted.items()
+            if asset_class_map.get(t, "") in BOND_ASSET_CLASSES
+        )
+        headroom = max(0.0, ASSET_GROUP_CAPS.get("bonds", 1.0) - bond_total)
+        effective_buffer = min(buffer, headroom)
+        if effective_buffer < buffer:
+            logger.info(
+                f"Crisis buffer limited to {effective_buffer:.1%} by bond-cap headroom"
+            )
+    if effective_buffer <= 0:
+        return adjusted
+
+    others_total = sum(w for t, w in adjusted.items() if t != haven_ticker)
+    if others_total <= 0:
+        return adjusted
+    scale = (others_total - effective_buffer) / others_total
+    for t in list(adjusted.keys()):
+        if t != haven_ticker:
+            adjusted[t] *= scale
+    adjusted[haven_ticker] = adjusted.get(haven_ticker, 0.0) + effective_buffer
+
+    total = sum(adjusted.values())
+    if total > 0:
+        adjusted = {k: v / total for k, v in adjusted.items()}
+    return adjusted
 
 
 # =============================================================================
@@ -383,12 +626,16 @@ def get_portfolio_performance(
     cash_w = weights.get("__CASH__", 0)
 
     port_return = float(np.dot(w, mu)) + cash_w * risk_free_rate
-    port_vol = float(np.sqrt(np.dot(w.T, np.dot(cov_sub, w))))
+    # Client-facing vol is scaled by the measured realized/predicted calibration
+    # ratio (Phase 2: EWMA+LW under-predicts realized vol by ~10–20%).
+    port_vol_model = float(np.sqrt(np.dot(w.T, np.dot(cov_sub, w))))
+    port_vol = port_vol_model * VOL_CALIBRATION_MULTIPLIER
     sharpe = (port_return - risk_free_rate) / port_vol if port_vol > 0 else 0
 
     return {
         "expected_return": round(port_return, 6),
         "volatility": round(port_vol, 6),
+        "volatility_model": round(port_vol_model, 6),
         "sharpe_ratio": round(sharpe, 4),
     }
 
@@ -403,6 +650,7 @@ def compute_efficient_frontier(
     weight_bounds: list[tuple[float, float]],
     n_points: int = MVO_EFFICIENT_FRONTIER_POINTS,
     risk_free_rate: float = MVO_RISK_FREE_RATE,
+    asset_class_map: Optional[dict[str, str]] = None,
 ) -> list[dict]:
     """
     Compute the full efficient frontier as a list of portfolio points.
@@ -421,6 +669,11 @@ def compute_efficient_frontier(
     """
     frontier = []
 
+    # Group caps (bonds ≤ 20%, gold ≤ 10%) if an asset-class map is given
+    sm = sl = su = None
+    if asset_class_map is not None:
+        sm, sl, su = build_sector_caps(list(expected_returns.index), asset_class_map)
+
     max_ret = expected_returns.max()
     if max_ret <= risk_free_rate:
         safe_rf = max_ret - 0.01 if max_ret > 0.01 else 0.0
@@ -429,10 +682,12 @@ def compute_efficient_frontier(
     try:
         # Find min and max achievable returns
         ef_min = EfficientFrontier(expected_returns, cov_matrix, weight_bounds=weight_bounds)
+        _apply_sector_caps(ef_min, sm, sl, su)
         ef_min.min_volatility()
         min_ret, min_vol, _ = ef_min.portfolio_performance(risk_free_rate=risk_free_rate)
 
         ef_max = EfficientFrontier(expected_returns, cov_matrix, weight_bounds=weight_bounds)
+        _apply_sector_caps(ef_max, sm, sl, su)
         ef_max.max_sharpe(risk_free_rate=risk_free_rate)
         max_ret, _, _ = ef_max.portfolio_performance(risk_free_rate=risk_free_rate)
 
@@ -444,6 +699,7 @@ def compute_efficient_frontier(
                 ef = EfficientFrontier(
                     expected_returns, cov_matrix, weight_bounds=weight_bounds,
                 )
+                _apply_sector_caps(ef, sm, sl, su)
                 ef.efficient_return(target_return=target)
                 ret, vol, sharpe = ef.portfolio_performance(
                     risk_free_rate=risk_free_rate,
@@ -509,6 +765,11 @@ def build_optimised_portfolio(
     """
     # ── Step 1: Asset Class Selection (STRICT ROBO-CONTROL) ──
     # User choice is eliminated to ensure adherence to MPT principles.
+    if selected_asset_classes:
+        logger.warning(
+            "selected_asset_classes is no longer honoured (single strategic "
+            "universe since Phase 3) — proceeding with the robo-selected universe"
+        )
     asset_classes = select_asset_classes_for_risk(risk_score)
     logger.info(f"Strictly selected {len(asset_classes)} asset classes for risk={risk_score}")
 
@@ -520,73 +781,64 @@ def build_optimised_portfolio(
     if len(tickers) < 2:
         raise ValueError("Need at least 2 asset classes with valid ETFs")
 
-    # ── Step 3: Fetch prices ──
-    prices = build_close_price_matrix(tickers)
-    if prices is None or prices.empty:
-        raise ValueError("Could not fetch price data for the selected ETFs")
+    # ── Live GBP risk-free rate (yfinance money-market proxy; config fallback) ──
+    # Drives BOTH the pricing math (BL equilibrium, tangency) and Sharpe
+    # reporting — no hardcoded hurdle.
+    rf_live = get_risk_free_rate()
+    logger.info(f"Using live risk-free rate: {rf_live:.2%}")
 
-    # Drop tickers with insufficient data
-    min_days = 60
-    valid_cols = [c for c in prices.columns if prices[c].dropna().shape[0] >= min_days]
-    if len(valid_cols) < 2:
-        raise ValueError(f"Only {len(valid_cols)} ETFs have sufficient price history")
-    prices = prices[valid_cols]
-    tickers = valid_cols
-
-    # ── Step 4: Covariance matrix (Ledoit-Wolf shrinkage) ──
-    cov_matrix = compute_covariance(prices)
-
-    # ── Step 5: Expected returns (CAPM/BL, cost-adjusted) ──
+    # ── Steps 3–5: Monthly GBP-unhedged returns → locked Phase 1/2 inputs ──
+    # Expected returns = trailing+BL blend; covariance = EWMA+Ledoit-Wolf hybrid.
     expense_ratios = get_expense_ratios(asset_classes)
     expense_by_ticker = {ticker_map[ac]: er for ac, er in expense_ratios.items()
-                         if ac in ticker_map and ticker_map[ac] in tickers}
-    mu = get_expected_returns(prices, cov_matrix, expense_by_ticker)
+                         if ac in ticker_map}
+    mu, cov_matrix, monthly_returns = build_mu_cov(
+        tickers, expense_by_ticker, risk_free_rate=rf_live
+    )
+    tickers = list(mu.index)
 
-    # Filter to only tickers still in our prices DataFrame
-    mu = mu.reindex(tickers).dropna()
-    cov_matrix = cov_matrix.loc[mu.index, mu.index]
+    # Cash sleeve E[R] = LIVE cash rate net of fees. The trailing mean of a
+    # money-market fund is a stale forecast across rate regimes (the 10y
+    # window still contains the 2016-21 zero-rate era); its forward return is
+    # today's rate by construction.
+    mu = mu.copy()
+    for tk in mu.index:
+        if ac_by_ticker.get(tk, "") in CASH_ASSET_CLASSES:
+            mu.loc[tk] = rf_live - expense_by_ticker.get(tk, 0.0)
 
     if len(mu) < 2:
         raise ValueError("Insufficient return data after filtering")
 
-    # ── Step 6: Regime detection ──
-    high_corr = detect_high_correlation_regime(cov_matrix)
+    # ── Step 6: Regime detection (volatility/drawdown-based, Phase 2) ──
+    high_corr = detect_volatility_regime(monthly_returns)
 
     # ── Step 7: Weight bounds ──
     weight_bounds = _get_weight_bounds(list(mu.index), ac_by_ticker)
 
-    # ── Step 8: Efficient frontier computation first (to replace one fund caching) ──
-    frontier = compute_efficient_frontier(mu, cov_matrix, weight_bounds)
-
-    # Fallback to tangent if frontier is empty
-    tangent_weights = {}
-    if not frontier:
-        tangent_weights = compute_tangent_portfolio(mu, cov_matrix, weight_bounds)
-        frontier = [{"weights": tangent_weights, "expected_return": 0, "volatility": 0, "sharpe_ratio": 0}]
-    else:
-        # Reconstruct tangent from max sharpe logic if needed, but for metric
-        tangent_weights = compute_tangent_portfolio(mu, cov_matrix, weight_bounds)
-
-    # ── Step 9: 100% ETF Risk Targeting ──
-    optimal_weights = select_target_risk_portfolio(frontier, risk_score, investment_horizon_years)
+    # ── Step 9: Risk via target-volatility ladder on the constrained frontier ──
+    risk_targeted = build_risk_targeted_portfolio(
+        risk_score, mu, cov_matrix, weight_bounds,
+        risk_free_rate=rf_live, asset_class_map=ac_by_ticker,
+    )
+    optimal_weights = risk_targeted["weights"]
+    tangent_weights = risk_targeted["growth_fund"]
     blended = dict(optimal_weights)
 
-    # ── Step 10: Apply crisis safe-bond buffer (replaced cash) ──
-    safe_bond_ticker = ticker_map.get("indian_bonds") or ticker_map.get("uk_gilts")
+    # ── Step 10: Crisis buffer → CASH haven (gilts fallback), caps respected ──
+    # Haven priority: cash_equivalent (exempt from bond cap → no violation),
+    # then uk_gilts (bond cap re-checked and clamped). Never EM/INR duration.
+    safe_bond_ticker = ticker_map.get("cash_equivalent") or ticker_map.get("uk_gilts")
     if high_corr and safe_bond_ticker and safe_bond_ticker in mu.index:
-        current_safe = blended.get(safe_bond_ticker, 0)
-        blended[safe_bond_ticker] = current_safe + CRISIS_CASH_BUFFER
-        # Reduce proportionally from risky active positions
-        total = sum(w for t, w in blended.items() if t != safe_bond_ticker)
-        if total > 0:
-            scale = (total - CRISIS_CASH_BUFFER) / total
-            for t in list(blended.keys()):
-                if t != safe_bond_ticker:
-                    blended[t] *= scale
-        logger.warning(f"Crisis bond buffer applied: +{CRISIS_CASH_BUFFER:.0%} {safe_bond_ticker}")
+        blended = apply_crisis_buffer(
+            blended, safe_bond_ticker, ac_by_ticker, CRISIS_CASH_BUFFER
+        )
+        logger.warning(f"Crisis buffer applied: +{CRISIS_CASH_BUFFER:.0%} → {safe_bond_ticker}")
 
-    # ── Step 11: Dual momentum overlay ──
-    blended = apply_dual_momentum(prices, blended, safe_bond_ticker)
+    # ── Step 11: Dual momentum overlay (optional; fetches daily prices only if enabled) ──
+    if USE_DUAL_MOMENTUM:
+        prices = build_close_price_matrix(tickers)
+        if prices is not None and not prices.empty:
+            blended = apply_dual_momentum(prices, blended, safe_bond_ticker)
 
     # ── Step 12: Build final allocations ──
     final_weights = {}
@@ -599,11 +851,19 @@ def build_optimised_portfolio(
     if total_w > 0 and abs(total_w - 1.0) > 0.001:
         final_weights = {k: v / total_w for k, v in final_weights.items()}
 
-    # ── Performance metrics ──
-    perf = get_portfolio_performance(final_weights, mu, cov_matrix)
+    # ── Performance metrics (Sharpe reported against the LIVE risk-free rate) ──
+    perf = get_portfolio_performance(
+        final_weights, mu, cov_matrix, risk_free_rate=rf_live
+    )
 
-    # ── Efficient frontier ──
-    frontier = compute_efficient_frontier(mu, cov_matrix, weight_bounds)
+    # ── Efficient frontier (bonds ≤20% / gold ≤10% group caps) ──
+    frontier = compute_efficient_frontier(
+        mu, cov_matrix, weight_bounds,
+        risk_free_rate=rf_live, asset_class_map=ac_by_ticker,
+    )
+    if not frontier:
+        frontier = [{"weights": tangent_weights, "expected_return": 0,
+                     "volatility": 0, "sharpe_ratio": 0}]
 
     # ── Build allocation list ──
     allocations = []
@@ -633,5 +893,8 @@ def build_optimised_portfolio(
         "tangent_portfolio": {ac_by_ticker.get(t, t): round(w, 4)
                               for t, w in tangent_weights.items() if w > 0.001},
         "risk_allocation_alpha": risk_score / 10.0,
+        "target_volatility": risk_targeted.get("target_volatility"),
+        "volatility_ladder": [risk_targeted.get("sigma_min"), risk_targeted.get("sigma_max")],
         "asset_classes_used": asset_classes,
+        "risk_free_rate": round(rf_live, 6),
     }

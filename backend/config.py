@@ -72,6 +72,7 @@ RISK_DECAY_MAX_RISK: int = 6
 # ASSET CLASS UNIVERSE (UK-LISTED)
 # =============================================================
 ASSET_CLASSES: list[str] = [
+    "cash_equivalent",
     "uk_equity", "uk_mid_cap", "global_equity", "us_equity", "us_tech",
     "emerging_market_equity", "japan_equity", "europe_equity", "asia_pacific_equity",
     "uk_bonds", "uk_gilts", "uk_inflation_linked", "global_bonds", "corporate_bonds",
@@ -109,6 +110,7 @@ ASSET_CLASSES: list[str] = [
 # MIN / MAX ALLOCATION CONSTRAINTS PER ASSET CLASS
 # =============================================================
 ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
+    "cash_equivalent":         {"min": 0.00, "max": 0.80},
     "uk_equity":               {"min": 0.00, "max": 0.40},
     "uk_mid_cap":              {"min": 0.00, "max": 0.20},
     "global_equity":           {"min": 0.00, "max": 0.50},
@@ -165,24 +167,76 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
 }
 
 # =============================================================
+# GROUP (SECTOR) ALLOCATION CAPS — total weight across all members
+# Enforced as portfolio-level constraints in the optimizer (pypfopt sector
+# constraints), independent of per-asset ALLOCATION_CONSTRAINTS above.
+# =============================================================
+ASSET_GROUP_CAPS: dict[str, float] = {
+    "bonds": 0.20,   # total TERM fixed income ≤ 20% (mandate)
+    "gold": 0.10,    # total gold/precious metals ≤ 10% (mandate)
+}
+BOND_ASSET_CLASSES: list[str] = [
+    "uk_bonds", "uk_gilts", "uk_inflation_linked", "global_bonds",
+    "corporate_bonds", "high_yield_bonds", "us_treasury", "indian_bonds",
+]
+GOLD_ASSET_CLASSES: list[str] = [
+    "commodities_gold", "commodities_silver", "indian_gold", "indian_silver",
+]
+# The cash sleeve (cash_equivalent: ultrashort/money-market ETFs, ~0.5% vol) is
+# the de-risking instrument and is EXEMPT from the 20% bond cap — mirroring
+# Betterment, whose most conservative portfolio is 60% short-term treasuries.
+# Without this exemption the bond cap makes low-risk portfolios impossible
+# (risk-1 was forced to ~72% equity). Disclosed in docs/OPTIMIZATION_WALKTHROUGH.md.
+CASH_ASSET_CLASSES: list[str] = ["cash_equivalent"]
+
+# Universe filter: UK retail investors cannot hold non-UCITS funds (PRIIPs);
+# NSE-listed (.NS) lines are excluded from the investable map when True.
+UK_RETAIL_UCITS_ONLY: bool = True
+
+# Client-facing volatility calibration: Phase 2 measured realized/predicted
+# vol ≈ 1.1–1.2 for the EWMA+LW model; reported vol is scaled accordingly.
+VOL_CALIBRATION_MULTIPLIER: float = 1.15
+
+# =============================================================
 # REBALANCING THRESHOLDS
 # =============================================================
 REBALANCE_DRIFT_THRESHOLD: float = 0.05     # Trigger if any asset drifts >5%
-REBALANCE_CHECK_FREQUENCY: str = "daily"     # "daily" | "weekly" | "monthly"
+REBALANCE_CHECK_FREQUENCY: str = "monthly"   # "daily" | "weekly" | "monthly" (monthly avoids over-trading)
+
+# Round-trip transaction cost assumption (one-way, basis points of traded notional).
+# ~0.10% covers typical UK ETF bid-ask half-spread + commission. UK ETFs are exempt
+# from the 0.5% stamp duty that applies to individual LSE shares.
+TRANSACTION_COST_BPS: float = 10.0
 
 # =============================================================
 # OPTIMIZATION PARAMETERS
 # =============================================================
-MVO_RISK_FREE_RATE: float = 0.040            # Strategic UK risk-free rate (reflecting current yield environment)
+# Risk-free rate FALLBACK — used only when the live fetch fails.
+# The LIVE GBP risk-free rate is fetched from yfinance via
+# backend/data/rates.py (trailing return of a GBP money-market ETF ≈ realized
+# SONIA). It drives BOTH the pricing math (CAPM/BL/tangency) and all Sharpe
+# reporting — the previous hardcoded 6% HURDLE_RATE has been removed.
+MVO_RISK_FREE_RATE: float = 0.040
+# Live risk-free proxy: GBP ultrashort/money-market ETFs, tried in order.
+RISK_FREE_PROXY_TICKERS: list[str] = ["ERNS.L", "CSH2.L"]
+RISK_FREE_LOOKBACK_MONTHS: int = 12
+# Sanity clamp on the fetched rate (annual). Outside this band = data error.
+RISK_FREE_CLAMP: tuple[float, float] = (0.0, 0.08)
+# Sanity clamp on production expected returns (annual, arithmetic). Informed by
+# professional CMAs (Vanguard 2026: ~4% bonds, muted equities) — trailing-heavy
+# estimates outside this band are treated as estimation error, not signal.
+EXPECTED_RETURN_CLAMP: tuple[float, float] = (-0.05, 0.12)
 BLACK_LITTERMAN_TAU: float = 0.05            # Scaling factor for BL prior uncertainty
 MVO_EFFICIENT_FRONTIER_POINTS: int = 50      # Number of portfolios on frontier curve
-TRACKING_ERROR_WEIGHT: float = 0.10          # Weight for tracking error minimisation (secondary objective)
 
 # =============================================================
 # MONTE CARLO
 # =============================================================
 MONTE_CARLO_SIMULATIONS: int = 1000
 MONTE_CARLO_YEARS: int = 30
+MONTE_CARLO_T_DOF: float = 6.0       # Student-t dof (fitted dev residuals ν≈6.3; stress-conservative)
+MONTE_CARLO_INFLATION: float = 0.025 # annual inflation for contribution & goal growth
+MONTE_CARLO_SEED: int = 42           # reproducibility; vary for sensitivity runs
 
 # =============================================================
 # EXPECTED RETURNS MODEL
@@ -202,8 +256,11 @@ DUAL_MOMENTUM_REDUCTION: float = 0.50        # Reduce allocation by 50% if negat
 # CORRELATION REGIME DETECTION
 # =============================================================
 REGIME_DETECTION_ENABLED: bool = True
-REGIME_HIGH_CORR_THRESHOLD: float = 0.75     # Average pairwise corr threshold for "crisis"
-CRISIS_CASH_BUFFER: float = 0.05             # Extra cash allocation in high-corr regime
+REGIME_HIGH_CORR_THRESHOLD: float = 0.75     # (legacy correlation detector)
+REGIME_VOL_ENTER_Z: float = 1.0              # enter crisis when vol z-score > this
+REGIME_VOL_EXIT_Z: float = 0.5               # remain in crisis until z falls below this (hysteresis)
+REGIME_DRAWDOWN_TRIGGER: float = -0.10       # or drawdown below this
+CRISIS_CASH_BUFFER: float = 0.05             # Extra defensive allocation in crisis regime
 
 # =============================================================
 # UK TAX ASSUMPTIONS
@@ -218,7 +275,9 @@ ISA_ANNUAL_ALLOWANCE_GBP: float = 20000.0
 # Prioritise high-tax-drag assets inside the ISA wrapper
 # =============================================================
 ISA_PRIORITY_ASSET_CLASSES: list[str] = [
-    "real_estate_reits",
+    "uk_reits",          # highest income tax drag → shelter first
+    "global_reits",
+    "high_yield_bonds",
     "corporate_bonds",
     "uk_bonds",
     "global_bonds",
@@ -234,7 +293,12 @@ BENCHMARK_NAME: str = "FTSE All-World"
 # DATA FETCHING
 # =============================================================
 PRICE_HISTORY_YEARS: int = 5                 # Default historical price window
-PRICE_STALE_HOURS: int = 24                  # Re-fetch if cache older than this
+# LIVE-FIRST data policy: prices are always fetched from yfinance; the local
+# SQLite cache is a resilience/rate-limit layer, not an offline store. Data
+# older than this is re-fetched (default 1h; set PRICE_STALE_HOURS=0 to force
+# a live fetch on every call — cache then serves only as a network-failure
+# fallback).
+PRICE_STALE_HOURS: float = float(os.getenv("PRICE_STALE_HOURS", "1"))
 UK_MARKET_CLOSE_HOUR: int = 16               # 4pm UK time (market close ~4:35pm)
 UK_MARKET_CLOSE_MINUTE: int = 35
 YFINANCE_TICKER_SUFFIX: str = ".L"           # LSE ticker suffix

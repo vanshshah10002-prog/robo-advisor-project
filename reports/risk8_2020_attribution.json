@@ -1,0 +1,100 @@
+{
+  "build_cutoff": "2019-12-31",
+  "eval_start": "2020-01-31",
+  "eval_end": "2026-06-30",
+  "years": 6.41,
+  "rf": 0.06,
+  "risk_score": 8.0,
+  "expected_return": 0.0996,
+  "expected_vol": 0.1153,
+  "actual_cagr": 0.1051,
+  "actual_vol": 0.1238,
+  "actual_sharpe": 0.3868,
+  "actual_maxdd": -0.1362,
+  "market_cagr": 0.1263,
+  "market_sharpe": 0.5238,
+  "blended_expected_annual": 0.0997,
+  "blended_actual_annual": 0.0912,
+  "attribution": [
+    {
+      "ticker": "IUKP.L",
+      "asset_class": "uk_reits",
+      "weight": 0.1015,
+      "expected_return": 0.049,
+      "actual_return": -0.0758,
+      "contribution_expected": 0.005,
+      "contribution_actual": -0.0077,
+      "variance_contribution": -0.0127
+    },
+    {
+      "ticker": "IEEM.L",
+      "asset_class": "emerging_market_equity",
+      "weight": 0.1751,
+      "expected_return": 0.1038,
+      "actual_return": 0.065,
+      "contribution_expected": 0.0182,
+      "contribution_actual": 0.0114,
+      "variance_contribution": -0.0068
+    },
+    {
+      "ticker": "IGLT.L",
+      "asset_class": "uk_gilts",
+      "weight": 0.0334,
+      "expected_return": 0.0331,
+      "actual_return": -0.0287,
+      "contribution_expected": 0.0011,
+      "contribution_actual": -0.001,
+      "variance_contribution": -0.0021
+    },
+    {
+      "ticker": "VEUR.L",
+      "asset_class": "europe_equity",
+      "weight": 0.2202,
+      "expected_return": 0.1079,
+      "actual_return": 0.1,
+      "contribution_expected": 0.0238,
+      "contribution_actual": 0.022,
+      "variance_contribution": -0.0017
+    },
+    {
+      "ticker": "ISF.L",
+      "asset_class": "uk_equity",
+      "weight": 0.0568,
+      "expected_return": 0.061,
+      "actual_return": 0.0508,
+      "contribution_expected": 0.0035,
+      "contribution_actual": 0.0029,
+      "variance_contribution": -0.0006
+    },
+    {
+      "ticker": "HMWO.L",
+      "asset_class": "global_equity",
+      "weight": 0.219,
+      "expected_return": 0.1153,
+      "actual_return": 0.1133,
+      "contribution_expected": 0.0253,
+      "contribution_actual": 0.0248,
+      "variance_contribution": -0.0004
+    },
+    {
+      "ticker": "ERNS.L",
+      "asset_class": "cash_equivalent",
+      "weight": 0.0049,
+      "expected_return": 0.0243,
+      "actual_return": 0.0298,
+      "contribution_expected": 0.0001,
+      "contribution_actual": 0.0001,
+      "variance_contribution": 0.0
+    },
+    {
+      "ticker": "EQQQ.L",
+      "asset_class": "us_tech",
+      "weight": 0.189,
+      "expected_return": 0.12,
+      "actual_return": 0.2045,
+      "contribution_expected": 0.0227,
+      "contribution_actual": 0.0387,
+      "variance_contribution": 0.016
+    }
+  ]
+}

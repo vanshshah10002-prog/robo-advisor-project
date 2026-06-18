@@ -47,30 +47,43 @@ def _get_connection() -> sqlite3.Connection:
             records_count INTEGER
         )
     """)
+    # Window awareness: a cache entry fetched for 3y must NOT satisfy a 10y
+    # request (different callers request different windows; serving the
+    # shorter one silently truncates estimation history).
+    try:
+        conn.execute("ALTER TABLE cache_metadata ADD COLUMN period_years INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()
     return conn
 
 
-def is_cache_fresh(ticker: str) -> bool:
+def is_cache_fresh(ticker: str, period_years: int = 0) -> bool:
     """
-    Check if the cached data for a ticker is still fresh.
+    Check if the cached data for a ticker is still fresh AND covers at least
+    the requested history window.
 
     Parameters:
         ticker (str): The ETF ticker.
+        period_years (int): Requested history window; cache must have been
+            fetched with a window >= this to count as fresh.
 
     Returns:
-        bool: True if cache exists and is younger than PRICE_STALE_HOURS.
+        bool: True if cache exists, is younger than PRICE_STALE_HOURS, and
+              was fetched with a sufficient window.
     """
     try:
         conn = _get_connection()
         cursor = conn.execute(
-            "SELECT last_fetched FROM cache_metadata WHERE ticker = ?",
+            "SELECT last_fetched, period_years FROM cache_metadata WHERE ticker = ?",
             (ticker,),
         )
         row = cursor.fetchone()
         conn.close()
 
         if row is None:
+            return False
+        if int(row[1] or 0) < period_years:
             return False
 
         last_fetched = datetime.datetime.fromisoformat(row[0])
@@ -114,13 +127,14 @@ def get_cached_prices(ticker: str) -> Optional[pd.DataFrame]:
         return None
 
 
-def save_to_cache(ticker: str, df: pd.DataFrame) -> None:
+def save_to_cache(ticker: str, df: pd.DataFrame, period_years: int = 0) -> None:
     """
     Save OHLCV data to the cache, replacing any existing data for the ticker.
 
     Parameters:
         ticker (str): The ETF ticker.
         df (pd.DataFrame): OHLCV DataFrame with Date index.
+        period_years (int): History window the data was fetched with.
     """
     try:
         conn = _get_connection()
@@ -150,8 +164,9 @@ def save_to_cache(ticker: str, df: pd.DataFrame) -> None:
 
         # Update metadata
         conn.execute(
-            "INSERT OR REPLACE INTO cache_metadata (ticker, last_fetched, records_count) VALUES (?, ?, ?)",
-            (ticker, now, len(records)),
+            "INSERT OR REPLACE INTO cache_metadata "
+            "(ticker, last_fetched, records_count, period_years) VALUES (?, ?, ?, ?)",
+            (ticker, now, len(records), int(period_years)),
         )
 
         conn.commit()
@@ -174,7 +189,7 @@ def get_or_fetch_prices(ticker: str, fetcher_func, period_years: int = 5) -> Opt
     Returns:
         pd.DataFrame or None: OHLCV data.
     """
-    if is_cache_fresh(ticker):
+    if is_cache_fresh(ticker, period_years):
         cached = get_cached_prices(ticker)
         if cached is not None and not cached.empty:
             logger.info(f"Using cached data for {ticker}")
@@ -183,7 +198,7 @@ def get_or_fetch_prices(ticker: str, fetcher_func, period_years: int = 5) -> Opt
     # Fetch fresh data
     df = fetcher_func(ticker, period_years)
     if df is not None and not df.empty:
-        save_to_cache(ticker, df)
+        save_to_cache(ticker, df, period_years)
         return df
 
     # Last resort: return stale cache if available

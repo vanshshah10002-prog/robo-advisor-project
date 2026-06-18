@@ -127,6 +127,62 @@ def compute_correlation_matrix(cov_matrix: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(corr, index=cov_matrix.index, columns=cov_matrix.columns)
 
 
+def compute_covariance_from_returns(
+    monthly_log_returns: pd.DataFrame,
+    method: str = "ewma_lw",
+) -> pd.DataFrame:
+    """
+    PRODUCTION covariance (Phase 2 locked): annualized covariance from monthly
+    GBP log returns. Default is the EWMA+Ledoit-Wolf hybrid, which forecasts
+    realized risk better than static Ledoit-Wolf (see Phase 2 bake-off).
+
+    Uses the validated implementations from backend.engine.quant_models.
+    """
+    from backend.engine.quant_models import ewma_lw_cov, ewma_cov, ledoit_wolf_cov
+    if method == "ewma":
+        return ewma_cov(monthly_log_returns)
+    if method == "ledoit_wolf":
+        return ledoit_wolf_cov(monthly_log_returns)
+    return ewma_lw_cov(monthly_log_returns)
+
+
+def detect_volatility_regime(
+    monthly_log_returns: pd.DataFrame,
+    market: Optional[pd.Series] = None,
+) -> bool:
+    """
+    PRODUCTION regime detector (Phase 2 locked): volatility/drawdown with
+    hysteresis.
+
+    Crisis = hysteresis state machine on the vol z-score (enter at
+    REGIME_VOL_ENTER_Z, exit at REGIME_VOL_EXIT_Z — prevents monthly whipsaw)
+    OR latest drawdown below REGIME_DRAWDOWN_TRIGGER (catches slow grinds like
+    2022). Validated to fire on COVID-2020 and 2022.
+
+    Parameters:
+        monthly_log_returns (pd.DataFrame): month-end GBP log returns.
+        market (pd.Series, optional): market proxy; defaults to equal-weight mean.
+
+    Returns:
+        bool: True if the most recent month is in a crisis regime.
+    """
+    if not REGIME_DETECTION_ENABLED:
+        return False
+    from backend.engine.quant_models import volatility_regime
+    from backend.config import REGIME_DRAWDOWN_TRIGGER
+    vr = volatility_regime(monthly_log_returns, market=market)
+    if vr.empty:
+        return False
+    last = vr.iloc[-1]
+    is_crisis = bool(last["crisis"] or last["drawdown"] < REGIME_DRAWDOWN_TRIGGER)
+    if is_crisis:
+        logger.warning(
+            f"VOLATILITY REGIME: crisis flagged (vol_z={last['vol_z']:.2f}, "
+            f"drawdown={last['drawdown']:.1%})"
+        )
+    return is_crisis
+
+
 def detect_high_correlation_regime(cov_matrix: pd.DataFrame) -> bool:
     """
     Detect if we're in a high-correlation regime (e.g., 2022-style crisis

@@ -235,7 +235,8 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/253736/ishares-core-msci-japan-imi-ucits-etf",
-        "tlh_substitute": "VJPN.L"
+        "tlh_substitute": "VJPN.L",
+        "delisted": true
     },
     {
         "ticker": "VJPN.L",
@@ -249,7 +250,7 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.vanguardinvestor.co.uk/investments/vanguard-ftse-japan-ucits-etf-usd-distributing",
-        "tlh_substitute": "CJPE.L"
+        "tlh_substitute": null
     },
     {
         "ticker": "VEUR.L",
@@ -379,17 +380,17 @@
     },
     {
         "ticker": "SLXX.L",
-        "name": "iShares Core \u00a3 Corporate Bond UCITS ETF (Dist)",
+        "name": "iShares Core £ Corporate Bond UCITS ETF (Dist)",
         "asset_class": "corporate_bonds",
         "isin": "IE0032895942",
         "expense_ratio": 0.002,
         "currency": "GBP",
-        "benchmark": "Markit iBoxx \u00a3 Non-Gilts Overall TR",
+        "benchmark": "Markit iBoxx £ Non-Gilts Overall TR",
         "fund_size_gbp_mm": 3000,
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/251723/ishares-core-corp-bond-ucits-etf",
-        "tlh_substitute": "VUKC.L"
+        "tlh_substitute": null
     },
     {
         "ticker": "VUKC.L",
@@ -403,7 +404,8 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.vanguardinvestor.co.uk/investments/vanguard-uk-investment-grade-bond-index-fund-gbp-acc",
-        "tlh_substitute": "SLXX.L"
+        "tlh_substitute": "SLXX.L",
+        "delisted": true
     },
     {
         "ticker": "IHYG.L",
@@ -445,7 +447,8 @@
         "domicile": "Ireland",
         "ucits": false,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/258441/ishares-physical-gold-etc",
-        "tlh_substitute": "PHAU.L"
+        "tlh_substitute": "PHAU.L",
+        "uk_retail_investable": true
     },
     {
         "ticker": "PHAU.L",
@@ -459,7 +462,8 @@
         "domicile": "Jersey",
         "ucits": false,
         "factsheet_url": "https://www.wisdomtree.eu/en-gb/products/ucits-etfs-unleveraged-etps/commodities/wisdomtree-physical-gold",
-        "tlh_substitute": "SGLN.L"
+        "tlh_substitute": "SGLN.L",
+        "uk_retail_investable": true
     },
     {
         "ticker": "SGLP.L",
@@ -473,7 +477,8 @@
         "domicile": "Ireland",
         "ucits": false,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/258440/ishares-physical-silver-etc",
-        "tlh_substitute": "PHAG.L"
+        "tlh_substitute": "PHAG.L",
+        "uk_retail_investable": true
     },
     {
         "ticker": "CMOD.L",
@@ -561,7 +566,7 @@
     },
     {
         "ticker": "CSH2.L",
-        "name": "iShares \u00a3 Ultrashort Bond UCITS ETF (Dist)",
+        "name": "iShares £ Ultrashort Bond UCITS ETF (Dist)",
         "asset_class": "cash_equivalent",
         "isin": "IE00BKWD3966",
         "expense_ratio": 0.0009,
@@ -641,7 +646,8 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/296903/ishares-msci-uk-imi-esg-leaders-ucits-etf",
-        "tlh_substitute": "ISF.L"
+        "tlh_substitute": "ISF.L",
+        "delisted": true
     },
     {
         "ticker": "ISPY.L",
@@ -669,7 +675,8 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.vanguardinvestor.co.uk/investments/vanguard-global-value-factor-ucits-etf-usd-accumulating",
-        "tlh_substitute": null
+        "tlh_substitute": null,
+        "delisted": true
     },
     {
         "ticker": "VMOM.L",
@@ -683,7 +690,8 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.vanguardinvestor.co.uk/investments/vanguard-global-momentum-factor-ucits-etf-usd-accumulating",
-        "tlh_substitute": null
+        "tlh_substitute": null,
+        "delisted": true
     },
     {
         "ticker": "IWQU.L",
@@ -711,7 +719,7 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/270046/ishares-edge-msci-world-value-factor-ucits-etf",
-        "tlh_substitute": "VVAL.L"
+        "tlh_substitute": null
     },
     {
         "ticker": "MON100.NS",
@@ -1306,5 +1314,47 @@
         "ucits": false,
         "tlh_substitute": null,
         "fund_size_gbp_mm": 1000
+    },
+    {
+        "ticker": "FLXI.L",
+        "name": "Franklin FTSE India UCITS ETF",
+        "asset_class": "indian_large_cap",
+        "isin": "IE00BHZRQZ17",
+        "expense_ratio": 0.0019,
+        "currency": "USD",
+        "benchmark": "FTSE India Capped",
+        "fund_size_gbp_mm": 1500,
+        "domicile": "Ireland",
+        "ucits": true,
+        "factsheet_url": "https://www.franklintempleton.co.uk/investor/investments-and-solutions/investment-options/etfs/price-and-performance/products/7282/SINGLCLASS/franklin-ftse-india-ucits-etf/IE00BHZRQZ17",
+        "tlh_substitute": "NDIA.L"
+    },
+    {
+        "ticker": "NDIA.L",
+        "name": "iShares MSCI India UCITS ETF",
+        "asset_class": "indian_large_cap",
+        "isin": "IE00BZCQB185",
+        "expense_ratio": 0.0065,
+        "currency": "USD",
+        "benchmark": "MSCI India",
+        "fund_size_gbp_mm": 6000,
+        "domicile": "Ireland",
+        "ucits": true,
+        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/296576/ishares-msci-india-ucits-etf-usd-acc-fund",
+        "tlh_substitute": "FLXI.L"
+    },
+    {
+        "ticker": "IWMO.L",
+        "name": "iShares Edge MSCI World Momentum Factor UCITS ETF (Acc)",
+        "asset_class": "global_momentum",
+        "isin": "IE00BP3QZ825",
+        "expense_ratio": 0.003,
+        "currency": "USD",
+        "benchmark": "MSCI World Momentum Index",
+        "fund_size_gbp_mm": 2000,
+        "domicile": "Ireland",
+        "ucits": true,
+        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/270051/ishares-msci-world-momentum-factor-ucits-etf",
+        "tlh_substitute": null
     }
 ]

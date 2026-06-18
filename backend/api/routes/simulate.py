@@ -20,12 +20,10 @@ from backend.engine.optimizer import (
     get_portfolio_performance,
     _get_weight_bounds,
 )
-from backend.engine.expected_returns import get_expected_returns
-from backend.engine.covariance import compute_covariance
+from backend.engine.expected_returns import build_mu_cov
 from backend.engine.monte_carlo import run_monte_carlo, quick_projection
 from backend.engine.asset_universe import get_ticker_map, get_expense_ratios
-from backend.data.market_data import build_close_price_matrix
-from backend.config import MVO_RISK_FREE_RATE
+from backend.data.rates import get_risk_free_rate
 
 router = APIRouter()
 
@@ -56,20 +54,23 @@ async def get_efficient_frontier(
     tickers = list(ticker_map.values())
     ac_by_ticker = {v: k for k, v in ticker_map.items()}
 
-    prices = build_close_price_matrix(tickers)
-    if prices is None:
-        raise HTTPException(status_code=500, detail="Could not fetch price data")
+    # Live GBP risk-free rate (yfinance proxy; config fallback)
+    rf_live = get_risk_free_rate()
 
-    # Compute inputs
-    cov_matrix = compute_covariance(prices)
     expense_ratios = get_expense_ratios(classes)
     expense_by_ticker = {ticker_map[ac]: er for ac, er in expense_ratios.items()}
-    mu = get_expected_returns(prices, cov_matrix, expense_by_ticker)
+    try:
+        mu, cov_matrix, _ = build_mu_cov(tickers, expense_by_ticker, risk_free_rate=rf_live)
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-    weight_bounds = _get_weight_bounds(tickers, ac_by_ticker)
+    weight_bounds = _get_weight_bounds(list(mu.index), ac_by_ticker)
 
-    # Compute frontier
-    frontier = compute_efficient_frontier(mu, cov_matrix, weight_bounds)
+    # Compute frontier (bonds ≤20% / gold ≤10% group caps)
+    frontier = compute_efficient_frontier(
+        mu, cov_matrix, weight_bounds,
+        risk_free_rate=rf_live, asset_class_map=ac_by_ticker,
+    )
 
     frontier_points = [
         EfficientFrontierPoint(
@@ -83,7 +84,7 @@ async def get_efficient_frontier(
 
     return EfficientFrontierResponse(
         frontier_points=frontier_points,
-        risk_free_rate=MVO_RISK_FREE_RATE,
+        risk_free_rate=rf_live,
     )
 
 
@@ -121,13 +122,10 @@ async def run_monte_carlo_simulation(
     elif request.weights:
         # Ad-hoc weights — need full computation
         tickers = list(request.weights.keys())
-        prices = build_close_price_matrix(tickers)
-
-        if prices is None:
-            raise HTTPException(status_code=500, detail="Could not fetch price data")
-
-        cov_matrix = compute_covariance(prices)
-        mu = get_expected_returns(prices, cov_matrix, {})
+        try:
+            mu, cov_matrix, _ = build_mu_cov(tickers, {})
+        except ValueError as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
         result = run_monte_carlo(
             initial_investment=request.initial_investment,

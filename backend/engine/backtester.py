@@ -14,7 +14,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from backend.config import MVO_RISK_FREE_RATE, BENCHMARK_TICKER
+from backend.config import MVO_RISK_FREE_RATE, BENCHMARK_TICKER, TRANSACTION_COST_BPS
 from backend.data.market_data import build_close_price_matrix, fetch_prices
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,7 @@ def backtest_portfolio(
     initial_investment: float = 10000.0,
     rebalance_frequency: str = "quarterly",
     benchmark_ticker: str = BENCHMARK_TICKER,
+    transaction_cost_bps: float = TRANSACTION_COST_BPS,
 ) -> dict:
     """
     Run a historical backtest on a portfolio allocation.
@@ -88,6 +89,7 @@ def backtest_portfolio(
 
     portfolio_values = [initial_investment]
     current_weights = w.copy()
+    cost_rate = transaction_cost_bps / 10000.0  # one-way cost per unit turnover
 
     for i in range(len(returns)):
         date = returns.index[i]
@@ -98,11 +100,14 @@ def backtest_portfolio(
         portfolio_return = new_weights.sum() / current_weights.sum() - 1
         portfolio_values.append(portfolio_values[-1] * (1 + portfolio_return))
 
-        # Normalise weights
+        # Normalise weights (drifted)
         current_weights = new_weights / new_weights.sum()
 
-        # Rebalance if scheduled
+        # Rebalance if scheduled — charge transaction costs on the traded turnover
         if date in rebalance_days:
+            one_way_turnover = 0.5 * float(np.sum(np.abs(w - current_weights)))
+            cost = one_way_turnover * cost_rate
+            portfolio_values[-1] *= (1.0 - cost)
             current_weights = w.copy()
 
     dates = [returns.index[0] - pd.Timedelta(days=1)] + list(returns.index)
