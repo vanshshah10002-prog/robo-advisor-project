@@ -64,7 +64,7 @@ uk-robo-advisor/
 
 ### 1. Clone & Configure
 ```bash
-git clone <your-repo-url>
+git clone (https://github.com/vanshshah10002-prog/robo-advisor-project)
 cd uk-robo-advisor
 cp .env.example .env
 # Edit .env with your API keys (see API Keys section below)
