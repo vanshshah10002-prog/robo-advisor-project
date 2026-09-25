@@ -416,11 +416,27 @@ def build_mu_cov(
         (mu, cov, monthly_returns)
     """
     from backend.data.returns import build_monthly_gbp_log_returns
-    from backend.engine.quant_models import ewma_lw_cov
 
     monthly = build_monthly_gbp_log_returns(tickers, period_years=period_years, min_obs=24)
     if monthly is None or monthly.shape[1] < 2:
         raise ValueError("Insufficient monthly return data for selected ETFs")
+    mu, cov = estimate_mu_cov(monthly, expense_by_ticker, risk_free_rate, asset_class_of, w_trailing)
+    return mu, cov, monthly
+
+
+def estimate_mu_cov(
+    monthly: pd.DataFrame,
+    expense_by_ticker: Optional[dict[str, float]] = None,
+    risk_free_rate: float = MVO_RISK_FREE_RATE,
+    asset_class_of: Optional[dict[str, str]] = None,
+    w_trailing: Optional[float] = None,
+) -> tuple[pd.Series, pd.DataFrame]:
+    """
+    Expected returns and covariance from a monthly log-return panel — the
+    pure estimation step shared by live construction and the walk-forward
+    backtest (which passes only data available at each decision date).
+    """
+    from backend.engine.quant_models import ewma_lw_cov
 
     cov = ewma_lw_cov(monthly)
     # Defensive: a ticker whose covariance column is NaN/Inf (e.g. no
@@ -432,7 +448,7 @@ def build_mu_cov(
         cov = cov.loc[keep, keep]
 
     mu = get_blend_expected_returns(
-        monthly, expense_by_ticker, w_trailing, risk_free_rate,
+        monthly[list(cov.columns)], expense_by_ticker, w_trailing, risk_free_rate,
         cov_matrix=cov, asset_class_of=asset_class_of,
     )
 
@@ -441,7 +457,7 @@ def build_mu_cov(
         raise ValueError("Fewer than 2 tickers shared between returns and covariance")
     mu = mu.reindex(common).dropna()
     cov = cov.loc[mu.index, mu.index]
-    return mu, cov, monthly
+    return mu, cov
 
 
 def get_expected_returns(

@@ -116,6 +116,16 @@ def _get_weight_bounds(
 # POLICY OPTIMISATION
 # =============================================================================
 
+def apply_cash_forward_rate(mu: pd.Series, asset_class_of: dict[str, str], risk_free_rate: float,
+                            expense_by_ticker: Optional[dict[str, float]] = None) -> pd.Series:
+    """Cash's forward return is today's rate less fees, not its trailing average."""
+    mu = mu.copy()
+    for t in mu.index:
+        if asset_class_of.get(t, "") in CASH_ASSET_CLASSES:
+            mu.loc[t] = risk_free_rate - (expense_by_ticker or {}).get(t, 0.0)
+    return mu
+
+
 def _new_frontier(mu, cov, bounds, tickers, ac_of, growth_rng):
     ef = EfficientFrontier(mu, cov, weight_bounds=bounds)
     add_policy_constraints(ef, tickers, ac_of, growth_rng)
@@ -449,11 +459,7 @@ def build_optimised_portfolio(
     mu, cov_matrix, monthly_returns = build_mu_cov(
         tickers, expense_by_ticker, risk_free_rate=rf_live, asset_class_of=ac_by_ticker,
     )
-    mu = mu.copy()
-    for tk in mu.index:
-        # Cash's forward return is today's rate, not its trailing average.
-        if ac_by_ticker.get(tk, "") in CASH_ASSET_CLASSES:
-            mu.loc[tk] = rf_live - expense_by_ticker.get(tk, 0.0)
+    mu = apply_cash_forward_rate(mu, ac_by_ticker, rf_live, expense_by_ticker)
     if len(mu) < 2:
         raise ValueError("Insufficient return data after filtering")
 

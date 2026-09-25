@@ -15,8 +15,11 @@ from backend.api.models import (
     MonteCarloRequest,
     MonteCarloResponse,
 )
-from backend.config import CASH_ASSET_CLASSES
-from backend.engine.optimizer import OptimisationError, compute_efficient_frontier
+from backend.engine.optimizer import (
+    OptimisationError,
+    apply_cash_forward_rate,
+    compute_efficient_frontier,
+)
 from backend.engine.policy import weight_bounds as policy_weight_bounds
 from backend.engine.expected_returns import build_mu_cov
 from backend.engine.monte_carlo import run_monte_carlo, quick_projection
@@ -66,10 +69,7 @@ async def get_efficient_frontier(
         raise HTTPException(status_code=503, detail=str(e))
 
     # Same cash assumption as portfolio construction: forward return = live rate.
-    mu = mu.copy()
-    for t in mu.index:
-        if ac_by_ticker.get(t) in CASH_ASSET_CLASSES:
-            mu.loc[t] = rf_live - expense_by_ticker.get(t, 0.0)
+    mu = apply_cash_forward_rate(mu, ac_by_ticker, rf_live, expense_by_ticker)
 
     try:
         frontier = compute_efficient_frontier(
