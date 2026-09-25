@@ -200,8 +200,20 @@ VOL_CALIBRATION_MULTIPLIER: float = 1.15
 # =============================================================
 # REBALANCING THRESHOLDS
 # =============================================================
-REBALANCE_DRIFT_THRESHOLD: float = 0.05     # Trigger if any asset drifts >5%
-REBALANCE_CHECK_FREQUENCY: str = "monthly"   # "daily" | "weekly" | "monthly" (monthly avoids over-trading)
+# Tolerance band per holding = max(MIN, min(ABS, REL × target)): ±5pp for large
+# sleeves, ±25% of target for small ones, never tighter than ±1pp.
+# Sources: Vanguard (Jaconetti, Kinniry & Zilbering) ~5% thresholds;
+# Daryanani (2008) 20–25% relative bands. See docs/PORTFOLIO_REMEDIATION_PLAN.md.
+REBALANCE_ABS_BAND: float = 0.05
+REBALANCE_REL_BAND: float = 0.25
+REBALANCE_MIN_BAND: float = 0.01
+REBALANCE_DRIFT_THRESHOLD: float = REBALANCE_ABS_BAND  # legacy name
+# Portfolio drift = ½·Σ|current − target| (Betterment's definition and default 3%).
+REBALANCE_PORTFOLIO_DRIFT: float = 0.03
+# Trades smaller than max(£25, 0.25% of portfolio value) are not worth their cost.
+REBALANCE_MIN_TRADE_GBP: float = 25.0
+REBALANCE_MIN_TRADE_PCT: float = 0.0025
+REBALANCE_CHECK_FREQUENCY: str = "daily"     # check often, trade rarely (Daryanani); bands limit turnover
 
 # Round-trip transaction cost assumption (one-way, basis points of traded notional).
 # ~0.10% covers typical UK ETF bid-ask half-spread + commission. UK ETFs are exempt

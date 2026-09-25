@@ -185,23 +185,40 @@ class PortfolioPerformance(BaseModel):
 
 
 class RebalanceTrade(BaseModel):
-    """Suggested trade for rebalancing."""
+    """One planned trade."""
     ticker: str
     etf_name: str
     action: str  # "buy" | "sell"
     current_weight: float
     target_weight: float
     trade_value_gbp: float
-    quantity: float
+    quantity: float  # units
+    price_gbp: float = 0.0
+    est_cost_gbp: float = 0.0
+    est_realised_gain_gbp: float = 0.0  # sells only, average-cost basis
 
 
 class RebalanceResponse(BaseModel):
-    """Rebalancing suggestion."""
+    """Drift check and, when triggered, the trade plan."""
     needs_rebalance: bool
     max_drift: float
+    portfolio_drift: float = 0.0
+    reasons: list[str] = []
+    out_of_band: list[str] = []
     trades: list[RebalanceTrade]
     before_allocations: dict[str, float]
     after_allocations: dict[str, float]
+    total_value_gbp: float = 0.0
+    est_total_cost_gbp: float = 0.0
+    est_realised_gain_gbp: float = 0.0
+    cgt_applies: bool = True  # False inside an ISA
+    stale_tickers: list[str] = []
+    executed: bool = False
+
+
+class ContributionRequest(BaseModel):
+    """A cash deposit into an existing portfolio."""
+    amount_gbp: float = Field(..., gt=0, description="Deposit in GBP")
 
 
 # =============================================================
