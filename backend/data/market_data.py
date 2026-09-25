@@ -66,11 +66,55 @@ def fetch_prices_yfinance(
         data.index = pd.to_datetime(data.index)
         data.index.name = "Date"
 
-        return data[["Open", "High", "Low", "Close", "Volume"]].dropna()
+        out = data[["Open", "High", "Low", "Close", "Volume"]].dropna()
+        currency = _yahoo_quote_currency(ticker)
+        return normalise_quote_units(out, currency)
 
     except Exception as e:
         logger.error(f"yfinance fetch failed for {ticker}: {e}")
         return None
+
+
+_PENCE_CODES = {"GBp", "GBX", "GBx"}
+
+
+def _yahoo_quote_currency(ticker: str) -> Optional[str]:
+    """The listing's trading currency as Yahoo reports it (e.g. GBp, USD), or None."""
+    try:
+        return yf.Ticker(ticker).fast_info["currency"]
+    except Exception as e:
+        logger.debug(f"No quote currency for {ticker}: {e}")
+        return None
+
+
+def normalise_quote_units(df: pd.DataFrame, currency: Optional[str]) -> pd.DataFrame:
+    """
+    Put OHLC prices in whole currency units and record the currency.
+
+    - Pence listings (GBp) are divided by 100 and tagged GBP, so an LSE line
+      that trades in sterling is never FX-converted as if it were USD.
+    - Yahoo occasionally switches a pence series to pounds (or back) for a few
+      days; points more than 30× away from the series median are rescaled.
+
+    The detected currency is stored in `df.attrs["currency"]` (None when
+    unknown — callers then fall back to the registry).
+    """
+    df = df.copy()
+    price_cols = [c for c in ("Open", "High", "Low", "Close") if c in df.columns]
+    if currency in _PENCE_CODES:
+        df[price_cols] = df[price_cols] / 100.0
+        currency = "GBP"
+    if "Close" in df.columns and len(df) > 5:
+        med = float(df["Close"].median())
+        if med > 0:
+            hi = df["Close"] > 30 * med
+            lo = df["Close"] < med / 30
+            if hi.any() or lo.any():
+                logger.warning(f"Rescaling {int(hi.sum() + lo.sum())} price points with a 100× unit glitch")
+                df.loc[hi, price_cols] = df.loc[hi, price_cols] / 100.0
+                df.loc[lo, price_cols] = df.loc[lo, price_cols] * 100.0
+    df.attrs["currency"] = currency
+    return df
 
 
 def fetch_prices_alpha_vantage(

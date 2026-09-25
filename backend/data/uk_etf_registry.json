@@ -254,17 +254,18 @@
     },
     {
         "ticker": "VEUR.L",
-        "name": "Vanguard FTSE Developed Europe ex-UK UCITS ETF",
+        "name": "Vanguard FTSE Developed Europe UCITS ETF (includes UK)",
         "asset_class": "europe_equity",
         "isin": "IE00B945VN12",
         "expense_ratio": 0.001,
         "currency": "EUR",
-        "benchmark": "FTSE Dev Europe ex UK",
+        "benchmark": "FTSE Developed Europe",
         "fund_size_gbp_mm": 2400,
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.vanguardinvestor.co.uk/investments/vanguard-ftse-developed-europe-ex-uk-ucits-etf-eur-distributing",
-        "tlh_substitute": "IMEU.L"
+        "tlh_substitute": "IMEU.L",
+        "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },
     {
         "ticker": "IMEU.L",
@@ -340,7 +341,7 @@
         "ticker": "INXG.L",
         "name": "iShares Index-Linked Gilts UCITS ETF (GBP)",
         "asset_class": "uk_inflation_linked",
-        "isin": "IE00B1FZSB30",
+        "isin": "IE00B1FZSD53",
         "expense_ratio": 0.001,
         "currency": "GBP",
         "benchmark": "Barclays UK Govt Inflation-Linked Bond",
@@ -348,7 +349,8 @@
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/251715/ishares-indexlinked-gilts-ucits-etf",
-        "tlh_substitute": "IGLT.L"
+        "tlh_substitute": "IGLT.L",
+        "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },
     {
         "ticker": "VAGP.L",
@@ -467,18 +469,19 @@
     },
     {
         "ticker": "SGLP.L",
-        "name": "iShares Physical Silver ETC",
-        "asset_class": "commodities_silver",
-        "isin": "IE00B4NCWG09",
-        "expense_ratio": 0.002,
+        "name": "Invesco Physical Gold ETC",
+        "asset_class": "commodities_gold",
+        "isin": "IE00B579F325",
+        "expense_ratio": 0.0012,
         "currency": "USD",
-        "benchmark": "LBMA Silver Price",
+        "benchmark": "LBMA Gold Price",
         "fund_size_gbp_mm": 1200,
         "domicile": "Ireland",
         "ucits": false,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/258440/ishares-physical-silver-etc",
-        "tlh_substitute": "PHAG.L",
-        "uk_retail_investable": true
+        "tlh_substitute": "SGLN.L",
+        "uk_retail_investable": true,
+        "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },
     {
         "ticker": "CMOD.L",
@@ -552,31 +555,33 @@
     },
     {
         "ticker": "ERNS.L",
-        "name": "L&G Short Dated Sterling Corporate Bond Index Fund",
+        "name": "iShares £ Ultrashort Bond UCITS ETF (Dist)",
         "asset_class": "cash_equivalent",
-        "isin": "IE00BKWD3966",
+        "isin": "IE00BCRY6557",
         "expense_ratio": 0.0006,
         "currency": "GBP",
-        "benchmark": "Markit iBoxx Sterling Corp 0-5yr",
+        "benchmark": "Markit iBoxx GBP Liquid Investment Grade Ultrashort",
         "fund_size_gbp_mm": 450,
         "domicile": "Ireland",
         "ucits": true,
-        "factsheet_url": "https://www.lgimetf.com/uk/en/fund-centre/etf/short-dated-sterling-corporate-bond/",
-        "tlh_substitute": null
+        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/258104/ishares-sterling-ultrashort-bond-ucits-etf",
+        "tlh_substitute": "CSH2.L",
+        "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },
     {
         "ticker": "CSH2.L",
-        "name": "iShares £ Ultrashort Bond UCITS ETF (Dist)",
+        "name": "Amundi Smart Overnight Return GBP UCITS ETF",
         "asset_class": "cash_equivalent",
-        "isin": "IE00BKWD3966",
+        "isin": "LU1230136894",
         "expense_ratio": 0.0009,
         "currency": "GBP",
-        "benchmark": "Markit iBoxx GBP FRN Investment Grade",
+        "benchmark": "SONIA (Sterling Overnight Index Average)",
         "fund_size_gbp_mm": 850,
         "domicile": "Ireland",
         "ucits": true,
-        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/287284/ishares-ultrashort-bond-ucits-etf",
-        "tlh_substitute": "ERNS.L"
+        "factsheet_url": "https://www.amundietf.co.uk",
+        "tlh_substitute": "ERNS.L",
+        "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },
     {
         "ticker": "VHYL.L",
@@ -651,17 +656,18 @@
     },
     {
         "ticker": "ISPY.L",
-        "name": "iShares MSCI World Small Cap UCITS ETF (Acc)",
-        "asset_class": "global_small_cap",
-        "isin": "IE00BF4RFH31",
-        "expense_ratio": 0.0035,
+        "name": "L&G Cyber Security UCITS ETF",
+        "asset_class": "thematic_cyber_security",
+        "isin": "IE00BYPLS672",
+        "expense_ratio": 0.0069,
         "currency": "USD",
-        "benchmark": "MSCI World Small Cap",
+        "benchmark": "ISE Cyber Security UCITS Index",
         "fund_size_gbp_mm": 3600,
         "domicile": "Ireland",
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/296576/ishares-msci-world-small-cap-ucits-etf",
-        "tlh_substitute": null
+        "tlh_substitute": null,
+        "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },
     {
         "ticker": "VVAL.L",
@@ -1356,5 +1362,51 @@
         "ucits": true,
         "factsheet_url": "https://www.ishares.com/uk/individual/en/products/270051/ishares-msci-world-momentum-factor-ucits-etf",
         "tlh_substitute": null
+    },
+    {
+        "ticker": "VERX.L",
+        "name": "Vanguard FTSE Developed Europe ex UK UCITS ETF (Dist)",
+        "asset_class": "europe_ex_uk_equity",
+        "isin": "IE00BKX55S42",
+        "expense_ratio": 0.001,
+        "currency": "GBP",
+        "benchmark": "FTSE Developed Europe ex UK",
+        "fund_size_gbp_mm": 2000,
+        "domicile": "Ireland",
+        "ucits": true,
+        "factsheet_url": "https://www.vanguardinvestor.co.uk/investments/vanguard-ftse-developed-europe-ex-uk-ucits-etf-eur-distributing",
+        "tlh_substitute": null,
+        "verification_note": "Added Sep 2026; fund size approximate. Confirm against the issuer factsheet."
+    },
+    {
+        "ticker": "SSLN.L",
+        "name": "iShares Physical Silver ETC",
+        "asset_class": "commodities_silver",
+        "isin": "IE00B4NCWG09",
+        "expense_ratio": 0.002,
+        "currency": "USD",
+        "benchmark": "LBMA Silver Price",
+        "fund_size_gbp_mm": 800,
+        "domicile": "Ireland",
+        "ucits": false,
+        "uk_retail_investable": true,
+        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/258443/ishares-physical-silver-etc",
+        "tlh_substitute": null,
+        "verification_note": "Added Sep 2026; fund size approximate. Confirm against the issuer factsheet."
+    },
+    {
+        "ticker": "WLDS.L",
+        "name": "iShares MSCI World Small Cap UCITS ETF (Acc)",
+        "asset_class": "global_small_cap",
+        "isin": "IE00BF4RFH31",
+        "expense_ratio": 0.0035,
+        "currency": "USD",
+        "benchmark": "MSCI World Small Cap",
+        "fund_size_gbp_mm": 3500,
+        "domicile": "Ireland",
+        "ucits": true,
+        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/296576/ishares-msci-world-small-cap-ucits-etf",
+        "tlh_substitute": null,
+        "verification_note": "Added Sep 2026; fund size approximate. Confirm against the issuer factsheet."
     }
 ]

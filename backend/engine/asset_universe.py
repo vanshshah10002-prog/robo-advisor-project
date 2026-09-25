@@ -8,10 +8,18 @@ Reference: Static registry of UK-listed UCITS ETFs on the London Stock Exchange.
 """
 
 import json
+import logging
 import os
-from typing import Optional
+from typing import Callable, Optional
 
-from backend.config import UK_RETAIL_UCITS_ONLY
+from backend.config import (
+    CORE_UNIVERSE,
+    UK_RETAIL_UCITS_ONLY,
+    USE_SATELLITE_CLASSES,
+    ASSET_CLASSES,
+)
+
+logger = logging.getLogger(__name__)
 
 _REGISTRY_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "data", "uk_etf_registry.json"
@@ -65,48 +73,100 @@ def get_etf_by_ticker(ticker: str) -> Optional[dict]:
     return None
 
 
+def _is_investable(etf: dict, ucits_only: bool) -> bool:
+    if etf.get("delisted", False):
+        return False
+    if ucits_only:
+        # LSE physical gold/silver ETCs are not UCITS funds but are ISA-eligible
+        # with PRIIPs KIDs; the registry marks them `uk_retail_investable`.
+        return bool(etf.get("ucits", False) or etf.get("uk_retail_investable", False))
+    return True
+
+
+def _registry_rank(etf: dict) -> tuple:
+    """Satellite ranking: large funds (≥ £500m) first, then lowest TER."""
+    return ((etf.get("fund_size_gbp_mm") or 0) < 500, etf["expense_ratio"])
+
+
 def get_etfs_by_asset_class(asset_class: str, ucits_only: bool = UK_RETAIL_UCITS_ONLY) -> list[dict]:
     """
-    Get all ETFs belonging to a given asset class.
+    Investable ETFs for an asset class, in order of preference.
 
-    When `ucits_only` is True (default, per UK_RETAIL_UCITS_ONLY), funds not
-    investable by UK retail (e.g. NSE-listed .NS lines) are excluded — they
-    cannot be held in an ISA/GIA under PRIIPs rules. LSE-listed physical
-    gold/silver ETCs are technically not UCITS funds but ARE ISA-eligible
-    with PRIIPs KIDs, so the registry marks them `uk_retail_investable`.
+    Core classes follow the explicit candidate order in CORE_UNIVERSE (chosen
+    on cost, size, history and GBP line — not TER alone). Other classes are
+    ranked by size then TER. Delisted funds and, for UK retail, NSE-listed
+    (non-UCITS) lines are excluded.
 
     Parameters:
         asset_class (str): Asset class identifier (e.g., "uk_equity").
         ucits_only (bool): Restrict to funds investable by UK retail.
 
     Returns:
-        list[dict]: Matching ETFs sorted by expense ratio (lowest first).
+        list[dict]: Candidate ETFs, most preferred first.
     """
+    if asset_class in CORE_UNIVERSE:
+        by_ticker = {e["ticker"]: e for e in get_all_etfs()}
+        ordered = [by_ticker[t] for t in CORE_UNIVERSE[asset_class] if t in by_ticker]
+        return [e for e in ordered if _is_investable(e, ucits_only)]
     matches = [
         etf for etf in get_all_etfs()
-        if etf["asset_class"] == asset_class and not etf.get("delisted", False)
+        if etf["asset_class"] == asset_class and _is_investable(etf, ucits_only)
     ]
-    if ucits_only:
-        matches = [
-            etf for etf in matches
-            if etf.get("ucits", False) or etf.get("uk_retail_investable", False)
-        ]
-    return sorted(matches, key=lambda e: e["expense_ratio"])
+    return sorted(matches, key=_registry_rank)
 
 
 def get_primary_etf_for_class(asset_class: str) -> Optional[dict]:
     """
-    Get the cheapest (lowest expense ratio) ETF for an asset class.
-    This is the primary ETF used for portfolio construction.
+    The preferred ETF for an asset class, before any data check (see
+    `resolve_ticker_map` for the data-aware choice).
 
     Parameters:
         asset_class (str): Asset class identifier.
 
     Returns:
-        dict or None: The primary ETF, or None if no ETF covers this class.
+        dict or None: The preferred ETF, or None if no investable ETF exists.
     """
     etfs = get_etfs_by_asset_class(asset_class)
     return etfs[0] if etfs else None
+
+
+def strategic_asset_classes() -> list[str]:
+    """Asset classes the optimiser uses: the core set, plus satellites if enabled."""
+    classes = list(CORE_UNIVERSE)
+    if USE_SATELLITE_CLASSES:
+        classes += [ac for ac in ASSET_CLASSES
+                    if ac not in CORE_UNIVERSE and get_primary_etf_for_class(ac) is not None]
+    return classes
+
+
+def resolve_ticker_map(
+    asset_classes: list[str],
+    usable: Optional[Callable[[str], bool]] = None,
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """
+    Pick one ETF per asset class, falling back down the candidate list when
+    the preferred fund fails `usable` (e.g. too little or stale price data).
+
+    Returns:
+        (ticker_map, skipped): {asset_class: ticker} for classes that resolved,
+        and {asset_class: [tickers rejected]} for every fallback or drop, so
+        callers can report them instead of silently losing a class.
+    """
+    ticker_map: dict[str, str] = {}
+    skipped: dict[str, list[str]] = {}
+    for ac in asset_classes:
+        for etf in get_etfs_by_asset_class(ac):
+            t = etf["ticker"]
+            if usable is None or usable(t):
+                ticker_map[ac] = t
+                break
+            skipped.setdefault(ac, []).append(t)
+        if ac in skipped:
+            if ac in ticker_map:
+                logger.warning(f"{ac}: fell back to {ticker_map[ac]} (unusable: {skipped[ac]})")
+            else:
+                logger.warning(f"{ac}: no usable ETF (tried {skipped[ac]}) — class excluded")
+    return ticker_map, skipped
 
 
 def get_substitute_ticker(ticker: str) -> Optional[str]:

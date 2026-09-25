@@ -45,7 +45,7 @@ def get_latest_gbp_price(ticker: str) -> Optional[tuple[float, datetime.date]]:
         return None
     close.index = pd.to_datetime(close.index)
     # Convert only the recent tail — enough for FX alignment, cheap to compute.
-    gbp = convert_to_gbp(close.iloc[-10:], _ticker_currency(ticker)).dropna()
+    gbp = convert_to_gbp(close.iloc[-10:], _ticker_currency(ticker, df)).dropna()
     if gbp.empty:
         return None
 

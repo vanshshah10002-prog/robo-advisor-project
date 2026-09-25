@@ -74,7 +74,8 @@ RISK_DECAY_MAX_RISK: int = 6
 ASSET_CLASSES: list[str] = [
     "cash_equivalent",
     "uk_equity", "uk_mid_cap", "global_equity", "us_equity", "us_tech",
-    "emerging_market_equity", "japan_equity", "europe_equity", "asia_pacific_equity",
+    "emerging_market_equity", "japan_equity", "europe_equity", "europe_ex_uk_equity",
+    "asia_pacific_equity",
     "uk_bonds", "uk_gilts", "uk_inflation_linked", "global_bonds", "corporate_bonds",
     "high_yield_bonds", "us_treasury",
     "commodities_gold", "commodities_silver", "commodities_broad",
@@ -107,6 +108,42 @@ ASSET_CLASSES: list[str] = [
 ]
 
 # =============================================================
+# CORE UNIVERSE — the building blocks the optimiser uses
+# =============================================================
+# A small set of low-overlap asset classes (Wealthfront: few, low-correlation
+# classes; Vanguard LifeStrategy: regional equity + GBP-hedged bonds). Each
+# lists its ETFs in order of preference; the first one that is UK-investable,
+# not delisted and has usable price history is used (fallback, not silent drop).
+# Order rationale: lowest cost among large, liquid, long-history GBP lines;
+# cash prefers a SONIA tracker (CSH2) over ultrashort credit (ERNS).
+# See docs/PORTFOLIO_REMEDIATION_PLAN.md §2.3.
+CORE_UNIVERSE: dict[str, list[str]] = {
+    # Growth
+    "uk_equity":              ["ISF.L", "VUKE.L"],
+    "us_equity":              ["VUAG.L", "VUSA.L", "CSP1.L"],
+    "europe_ex_uk_equity":    ["VERX.L"],
+    "japan_equity":           ["VJPN.L", "CJPE.L"],
+    "asia_pacific_equity":    ["VAPX.L", "CPXJ.L"],
+    "emerging_market_equity": ["VFEM.L", "IEEM.L", "VFEG.L"],
+    "global_reits":           ["IWDP.L"],
+    "commodities_gold":       ["SGLN.L", "PHAU.L", "SGLP.L"],
+    # Defensive
+    "uk_gilts":               ["IGLT.L", "VGOV.L"],
+    "uk_inflation_linked":    ["INXG.L"],
+    "global_bonds":           ["AGBP.L", "VAGP.L"],   # GBP-hedged only
+    "corporate_bonds":        ["SLXX.L", "VUKC.L"],
+    "cash_equivalent":        ["CSH2.L", "ERNS.L"],
+}
+# Overlapping or specialist classes (factor, ESG, thematic, dividend, high
+# yield, unhedged Treasuries, small cap, silver, broad commodities,
+# infrastructure, India, Europe incl. UK). Kept in the registry; the optimiser
+# only sees them when this is True.
+USE_SATELLITE_CLASSES: bool = False
+# Minimum monthly history for an ETF to be used (≥3 years keeps the
+# complete-case correlation window meaningful).
+MIN_HISTORY_MONTHS: int = 36
+
+# =============================================================
 # MIN / MAX ALLOCATION CONSTRAINTS PER ASSET CLASS
 # =============================================================
 ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
@@ -119,6 +156,7 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
     "emerging_market_equity":  {"min": 0.00, "max": 0.20},
     "japan_equity":            {"min": 0.00, "max": 0.15},
     "europe_equity":           {"min": 0.00, "max": 0.25},
+    "europe_ex_uk_equity":     {"min": 0.00, "max": 0.25},
     "asia_pacific_equity":     {"min": 0.00, "max": 0.15},
     "uk_bonds":                {"min": 0.00, "max": 0.50},
     "uk_gilts":                {"min": 0.00, "max": 0.40},
@@ -230,7 +268,7 @@ TRANSACTION_COST_BPS: float = 10.0
 # reporting — the previous hardcoded 6% HURDLE_RATE has been removed.
 MVO_RISK_FREE_RATE: float = 0.040
 # Live risk-free proxy: GBP ultrashort/money-market ETFs, tried in order.
-RISK_FREE_PROXY_TICKERS: list[str] = ["ERNS.L", "CSH2.L"]
+RISK_FREE_PROXY_TICKERS: list[str] = ["CSH2.L", "ERNS.L"]  # SONIA tracker first; ERNS carries credit spread
 RISK_FREE_LOOKBACK_MONTHS: int = 12
 # Sanity clamp on the fetched rate (annual). Outside this band = data error.
 RISK_FREE_CLAMP: tuple[float, float] = (0.0, 0.08)

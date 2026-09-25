@@ -96,6 +96,14 @@ def apply_prices(holdings: list[Holding], quotes: dict[str, tuple[float, datetim
     for h in holdings:
         q = quotes.get(h.ticker)
         if q is not None:
+            old = h.current_price or 0.0
+            if old > 0 and (q[0] > 30 * old or q[0] < old / 30):
+                # No ETF moves 30× between valuations: the quote unit changed
+                # (pence ↔ pounds). Rescale so the holding's GBP value is kept.
+                ratio = q[0] / old
+                logger.warning(f"{h.ticker}: price unit change ({old} → {q[0]}), rescaling units")
+                h.quantity = (h.quantity or 0.0) / ratio
+                h.average_cost = (h.average_cost or 0.0) * ratio
             h.current_price = q[0]
             h.price_as_of = datetime.datetime.combine(q[1], datetime.time())
         elif (h.quantity or 0.0) > 0:

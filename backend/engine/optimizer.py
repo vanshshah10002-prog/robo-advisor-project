@@ -46,9 +46,10 @@ from backend.config import (
 from backend.engine.covariance import detect_volatility_regime
 from backend.engine.expected_returns import build_mu_cov
 from backend.engine.asset_universe import (
-    get_ticker_map,
-    get_expense_ratios,
+    get_etf_by_ticker,
     get_primary_etf_for_class,
+    resolve_ticker_map,
+    strategic_asset_classes,
 )
 from backend.data.market_data import build_close_price_matrix
 from backend.data.rates import get_risk_free_rate
@@ -75,9 +76,9 @@ logger = logging.getLogger(__name__)
 
 
 def _build_strategic_universe() -> list[str]:
-    """All registry asset classes that resolve to an investable primary ETF."""
-    universe = [ac for ac in ASSET_CLASSES if get_primary_etf_for_class(ac) is not None]
-    logger.info(f"Dynamic strategic universe: {len(universe)} investable asset classes")
+    """Core building blocks (plus satellites if enabled) that have an investable ETF."""
+    universe = [ac for ac in strategic_asset_classes() if get_primary_etf_for_class(ac) is not None]
+    logger.info(f"Strategic universe: {len(universe)} asset classes")
     return universe
 
 
@@ -773,8 +774,12 @@ def build_optimised_portfolio(
     asset_classes = select_asset_classes_for_risk(risk_score)
     logger.info(f"Strictly selected {len(asset_classes)} asset classes for risk={risk_score}")
 
-    # ── Step 2: Map to ETF tickers ──
-    ticker_map = get_ticker_map(asset_classes)
+    # ── Step 2: Map to ETF tickers (fall back within a class if data is unusable) ──
+    from backend.data.returns import has_usable_history
+    from backend.config import MIN_HISTORY_MONTHS
+    ticker_map, skipped_etfs = resolve_ticker_map(
+        asset_classes, usable=lambda t: has_usable_history(t, min_months=MIN_HISTORY_MONTHS)
+    )
     tickers = list(ticker_map.values())
     ac_by_ticker = {v: k for k, v in ticker_map.items()}
 
@@ -789,9 +794,7 @@ def build_optimised_portfolio(
 
     # ── Steps 3–5: Monthly GBP-unhedged returns → locked Phase 1/2 inputs ──
     # Expected returns = trailing+BL blend; covariance = EWMA+Ledoit-Wolf hybrid.
-    expense_ratios = get_expense_ratios(asset_classes)
-    expense_by_ticker = {ticker_map[ac]: er for ac, er in expense_ratios.items()
-                         if ac in ticker_map}
+    expense_by_ticker = {t: get_etf_by_ticker(t)["expense_ratio"] for t in tickers}
     mu, cov_matrix, monthly_returns = build_mu_cov(
         tickers, expense_by_ticker, risk_free_rate=rf_live
     )
@@ -895,6 +898,7 @@ def build_optimised_portfolio(
         "risk_allocation_alpha": risk_score / 10.0,
         "target_volatility": risk_targeted.get("target_volatility"),
         "volatility_ladder": [risk_targeted.get("sigma_min"), risk_targeted.get("sigma_max")],
-        "asset_classes_used": asset_classes,
+        "asset_classes_used": [ac_by_ticker[t] for t in tickers],
+        "etf_fallbacks": skipped_etfs,
         "risk_free_rate": round(rf_live, 6),
     }

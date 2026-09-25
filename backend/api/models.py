@@ -226,17 +226,21 @@ class ContributionRequest(BaseModel):
 # =============================================================
 
 class ETFInfo(BaseModel):
-    """ETF metadata from the registry."""
+    """ETF metadata from the registry (field names match uk_etf_registry.json)."""
     ticker: str
     name: str
     asset_class: str
-    isin: str
+    isin: Optional[str] = None
     expense_ratio: float
     currency: str
-    benchmark_index: str
-    fund_size_gbp: float
-    domicile: str
-    substitute_ticker: Optional[str] = None
+    benchmark: Optional[str] = None
+    fund_size_gbp_mm: Optional[float] = None
+    domicile: Optional[str] = None
+    ucits: bool = False
+    uk_retail_investable: bool = False
+    tlh_substitute: Optional[str] = None
+    factsheet_url: Optional[str] = None
+    verification_note: Optional[str] = None
 
 
 class PriceData(BaseModel):
