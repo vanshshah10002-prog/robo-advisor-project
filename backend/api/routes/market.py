@@ -13,7 +13,8 @@ from backend.engine.asset_universe import (
     get_etf_by_ticker,
     get_etfs_by_asset_class,
 )
-from backend.data.market_data import fetch_prices, get_current_price
+from backend.data.market_data import fetch_prices
+from backend.data.prices import get_latest_gbp_price
 from backend.data.cache import get_or_fetch_prices
 from backend.config import ASSET_CLASSES
 
@@ -162,15 +163,14 @@ async def get_prices(
 @router.get("/price/{ticker}")
 async def get_latest_price(ticker: str):
     """
-    Get the latest price for an ETF.
-
-    Parameters:
-        ticker (str): ETF ticker.
+    Latest close for an ETF in GBP per unit — the same price the ledger uses.
 
     Returns:
-        dict: Ticker and latest close price.
+        dict: {ticker, price_gbp, as_of}.
     """
-    price = get_current_price(ticker)
-    if price is None:
-        raise HTTPException(status_code=404, detail=f"Could not fetch price for {ticker}")
-    return {"ticker": ticker, "price": round(price, 4)}
+    quote = get_latest_gbp_price(ticker)
+    if quote is None:
+        raise HTTPException(status_code=404, detail=f"No price available for {ticker}")
+    price, as_of = quote
+    return {"ticker": ticker, "price_gbp": round(price, 4), "price": round(price, 4),
+            "as_of": as_of.isoformat()}

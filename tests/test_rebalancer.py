@@ -12,7 +12,6 @@ from backend.engine.rebalancer import (
     portfolio_drift,
     tolerance_band,
 )
-from tests.test_ledger import api, _create  # noqa: F401  (fixture reuse)
 
 
 class TestBands:
@@ -114,9 +113,9 @@ class TestPlan:
 
 
 class TestRebalanceApi:
-    def test_price_move_triggers_and_execute_restores_target(self, api):
+    def test_price_move_triggers_and_execute_restores_target(self, api, create_portfolio):
         client, state = api
-        pid = _create(client)
+        pid = create_portfolio(client)
         assert client.get(f"/api/rebalance/{pid}").json()["needs_rebalance"] is False
 
         state["prices"] = {"VUAG.L": 140.0, "IGLT.L": 10.0}  # equity +40%
@@ -135,16 +134,16 @@ class TestRebalanceApi:
         # Trading costs are the only loss of value
         assert after["total_value"] == pytest.approx(plan["total_value_gbp"] - done["est_total_cost_gbp"], abs=0.05)
 
-    def test_execute_refused_with_stale_price(self, api):
+    def test_execute_refused_with_stale_price(self, api, create_portfolio):
         client, state = api
-        pid = _create(client)
+        pid = create_portfolio(client)
         state["prices"] = {"VUAG.L": 140.0}
         r = client.post(f"/api/rebalance/{pid}/execute")
         assert r.status_code == 409
 
-    def test_deposit_goes_to_underweight(self, api):
+    def test_deposit_goes_to_underweight(self, api, create_portfolio):
         client, state = api
-        pid = _create(client)
+        pid = create_portfolio(client)
         state["prices"] = {"VUAG.L": 120.0, "IGLT.L": 10.0}
         r = client.post(f"/api/portfolio/{pid}/contribute", json={"amount_gbp": 500}).json()
         assert [b["ticker"] for b in r["buys"]] == ["IGLT.L"]

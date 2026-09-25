@@ -1,5 +1,12 @@
 # Portfolio Optimization — Methodology Walkthrough & Validation Plan
 
+> **Superseded (September 2026).** Production construction and rebalancing now follow
+> [`PORTFOLIO_REMEDIATION_PLAN.md`](PORTFOLIO_REMEDIATION_PLAN.md): a fixed growth share per
+> risk score instead of the volatility ladder, no flat 20% bond cap, a reference-portfolio
+> equilibrium prior with arithmetic trailing means, 13 core building blocks, a holdings ledger
+> and band-based rebalancing. The record below documents the earlier research phases; the
+> superseded construction code lives in `backend/eval/legacy_construction.py`.
+
 ## PM OVERHAUL (June 2026) — current methodology of record
 
 A senior-PM review identified 10 weaknesses in the post-Phase-7 system; all were remediated.

@@ -225,27 +225,6 @@ def fetch_multiple_prices(
     return results
 
 
-def get_current_price(ticker: str) -> Optional[float]:
-    """
-    Get the latest closing price for a ticker.
-
-    Parameters:
-        ticker (str): LSE ticker.
-
-    Returns:
-        float or None: Latest closing price.
-    """
-    try:
-        t = yf.Ticker(ticker)
-        hist = t.history(period="5d")
-        if hist is not None and not hist.empty:
-            return float(hist["Close"].iloc[-1])
-        return None
-    except Exception as e:
-        logger.error(f"Failed to get current price for {ticker}: {e}")
-        return None
-
-
 def build_close_price_matrix(
     tickers: list[str],
     period_years: int = PRICE_HISTORY_YEARS,

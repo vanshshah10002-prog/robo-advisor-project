@@ -102,7 +102,10 @@ Core building blocks (`CORE_UNIVERSE` in config):
 
 ### 2.5 Allocation policy and optimiser (fixes A1, A2, C2–C4, A8, C5)
 - **Growth share by risk score:** G(r) = 10% × r, so risk 1 is 10% growth and risk 10 is 100%.
-  The optimiser can move ±5 pp around it (clipped to [0, 1]).
+  Portfolios are **built at exactly G(r)**. The ±5 pp is how far the portfolio may drift before
+  the rebalancer's growth trigger fires. (An earlier draft let the optimiser use ±5 pp at
+  construction. Testing showed that a single λ always used up that slack in one direction: risk 1
+  came out at 15% growth and risk 8 at 75%. The slack was removed.)
 - **Defensive sleeve** = 1 − G, split by the optimiser. Cash ≤ 50% of the defensive sleeve, so
   bonds do the de-risking (A1). The per-block caps follow Wealthfront's 35% guidance: gilts ≤ 35%,
   linkers ≤ 20%, hedged global agg ≤ 35%, IG credit ≤ 20%.
@@ -113,7 +116,7 @@ Core building blocks (`CORE_UNIVERSE` in config):
 - **Objective:** `max_quadratic_utility(λ = 2.5)`. This uses the same λ as the prior, so an unconstrained
   optimisation with no views returns the reference mix (P2). Constraints then shape it to the risk policy.
   The L2 penalty is removed (C4).
-- **Crisis overlay** (off by default, P9): when it is on, it narrows the growth band by 5 pp and re-solves,
+- **Crisis overlay** (off by default, P9): when it is on, it lowers the growth target by 5 pp and re-solves,
   so the result is feasible by construction (A8, C5).
 - Tiny weights (< 0.5%) are removed by re-solving with those assets fixed at zero, not by renormalising (C4).
 
@@ -182,3 +185,19 @@ and return model come first so the policy optimiser is built on correct inputs.
 - He, G. & Litterman, R. (1999), *The Intuition Behind Black-Litterman Model Portfolios*.
 - Doeswijk, Lam & Swinkels (2014), *The Global Multi-Asset Market Portfolio*, FAJ.
 - Kitces, *Volatility Drag: arithmetic vs geometric returns*.
+
+## 6. Implementation status (September 2026)
+
+| Step | Status | Commit subject |
+|---|---|---|
+| 1 Holdings ledger | Done | Holdings ledger: store units and cost basis, mark to market, stop simulating returns |
+| 2 Rebalancer | Done | Rebalancer: tolerance bands, cash-flow first, netted trades from the ledger |
+| 3 Universe and data | Done | Universe and data: core building blocks, ETF fallback, registry and currency fixes |
+| 4 Return model | Done | Return model: reference-portfolio prior, arithmetic means, fees deducted once |
+| 5 Allocation policy | Done | Allocation policy: growth share by risk score, bonds de-risk, region bands |
+| 6 Robustness and API | Done | Robustness: risk score from stored profile, GBP price route, docs |
+| 2.7 Deferred items | Open | Backtester alignment, scheduler, asset location, lot-level TLH |
+
+What still needs checking outside this environment (Yahoo Finance and issuer sites are blocked here):
+- Every `verification_note` entry in `backend/data/uk_etf_registry.json`, against issuer factsheets.
+- A full run on live prices: the synthetic-price validation checks the mechanics, not the numbers.

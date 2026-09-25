@@ -10,10 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.db.database import get_db, init_db
-from backend.db.models import Portfolio, Holding, User, Transaction
+from backend.db.models import Portfolio, Holding, RiskProfile, User, Transaction
 from backend.db.ledger_store import mark_to_market, record_fills
 from backend.api.models import PortfolioRequest, PortfolioResponse, AllocationItem
-from backend.engine.optimizer import build_optimised_portfolio
+from backend.engine.optimizer import OptimisationError, build_optimised_portfolio
 from backend.engine.asset_universe import get_etf_by_ticker
 from backend.engine.ledger import open_portfolio, valuation
 from backend.data.prices import get_latest_gbp_prices
@@ -50,14 +50,22 @@ async def create_portfolio(
         db.add(user)
         db.flush()
 
-    # Run optimisation — robo advisor auto-selects asset classes from risk score
-    # User-provided classes are optional override only
+    # The suitable risk level is the one assessed in the stored profile (with
+    # its short-horizon cap and conservative adjustments). A request may ask
+    # for LESS risk, never more.
+    risk_score = request.risk_score
+    profile = db.query(RiskProfile).filter(RiskProfile.user_id == request.user_id).first()
+    if profile is not None and risk_score > profile.composite_score:
+        risk_score = profile.composite_score
+
     try:
         result = build_optimised_portfolio(
-            risk_score=request.risk_score,
+            risk_score=risk_score,
             investment_amount=request.investment_amount,
             selected_asset_classes=getattr(request, 'selected_asset_classes', None),
         )
+    except OptimisationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -95,7 +103,7 @@ async def create_portfolio(
     # Save portfolio to database
     portfolio = Portfolio(
         user_id=request.user_id,
-        risk_score=request.risk_score,
+        risk_score=risk_score,
         target_allocations=result["weights"],
         selected_asset_classes=result.get("asset_classes_used", request.selected_asset_classes),
         investment_amount=request.investment_amount,
@@ -136,11 +144,11 @@ async def create_portfolio(
     record_fills(db, portfolio.id, fills, notes="Initial purchase")
     db.commit()
 
-    risk_band = RISK_BANDS.get(round(request.risk_score), "Unknown")
+    risk_band = RISK_BANDS.get(round(risk_score), "Unknown")
 
     return PortfolioResponse(
         portfolio_id=portfolio.id,
-        risk_score=request.risk_score,
+        risk_score=risk_score,
         risk_band=risk_band,
         allocations=allocations,
         expected_annual_return=result["performance"]["expected_return"],
