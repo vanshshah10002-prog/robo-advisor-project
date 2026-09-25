@@ -15,14 +15,12 @@ from backend.api.models import (
     MonteCarloRequest,
     MonteCarloResponse,
 )
-from backend.engine.optimizer import (
-    compute_efficient_frontier,
-    get_portfolio_performance,
-    _get_weight_bounds,
-)
+from backend.config import CASH_ASSET_CLASSES
+from backend.engine.optimizer import OptimisationError, compute_efficient_frontier
+from backend.engine.policy import weight_bounds as policy_weight_bounds
 from backend.engine.expected_returns import build_mu_cov
 from backend.engine.monte_carlo import run_monte_carlo, quick_projection
-from backend.engine.asset_universe import get_ticker_map, get_expense_ratios
+from backend.engine.asset_universe import get_etf_by_ticker, resolve_ticker_map
 from backend.data.rates import get_risk_free_rate
 
 router = APIRouter()
@@ -49,28 +47,37 @@ async def get_efficient_frontier(
     if len(classes) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 asset classes")
 
-    # Build price matrix
-    ticker_map = get_ticker_map(classes)
+    ticker_map, _ = resolve_ticker_map(classes)
+    unknown = [c for c in classes if c not in ticker_map]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"No investable ETF for: {', '.join(unknown)}")
     tickers = list(ticker_map.values())
     ac_by_ticker = {v: k for k, v in ticker_map.items()}
 
     # Live GBP risk-free rate (yfinance proxy; config fallback)
     rf_live = get_risk_free_rate()
 
-    expense_ratios = get_expense_ratios(classes)
-    expense_by_ticker = {ticker_map[ac]: er for ac, er in expense_ratios.items()}
+    expense_by_ticker = {t: get_etf_by_ticker(t)["expense_ratio"] for t in tickers}
     try:
-        mu, cov_matrix, _ = build_mu_cov(tickers, expense_by_ticker, risk_free_rate=rf_live)
+        mu, cov_matrix, _ = build_mu_cov(
+            tickers, expense_by_ticker, risk_free_rate=rf_live, asset_class_of=ac_by_ticker,
+        )
     except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e))
 
-    weight_bounds = _get_weight_bounds(list(mu.index), ac_by_ticker)
+    # Same cash assumption as portfolio construction: forward return = live rate.
+    mu = mu.copy()
+    for t in mu.index:
+        if ac_by_ticker.get(t) in CASH_ASSET_CLASSES:
+            mu.loc[t] = rf_live - expense_by_ticker.get(t, 0.0)
 
-    # Compute frontier (bonds ≤20% / gold ≤10% group caps)
-    frontier = compute_efficient_frontier(
-        mu, cov_matrix, weight_bounds,
-        risk_free_rate=rf_live, asset_class_map=ac_by_ticker,
-    )
+    try:
+        frontier = compute_efficient_frontier(
+            mu, cov_matrix, policy_weight_bounds(list(mu.index), ac_by_ticker),
+            risk_free_rate=rf_live, asset_class_of=ac_by_ticker,
+        )
+    except OptimisationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     frontier_points = [
         EfficientFrontierPoint(

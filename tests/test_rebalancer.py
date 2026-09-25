@@ -122,6 +122,7 @@ class TestRebalanceApi:
         state["prices"] = {"VUAG.L": 140.0, "IGLT.L": 10.0}  # equity +40%
         plan = client.get(f"/api/rebalance/{pid}").json()
         assert plan["needs_rebalance"] is True
+        assert any(r.startswith("growth weight") for r in plan["reasons"])  # 60% → ~68%, beyond ±5pp
         assert {t["action"] for t in plan["trades"]} == {"buy", "sell"}
         assert plan["cgt_applies"] is False  # ISA
 

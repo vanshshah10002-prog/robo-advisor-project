@@ -19,6 +19,7 @@ from backend.api.models import (
 )
 from backend.engine.asset_universe import get_etf_by_ticker
 from backend.engine.ledger import buy, sell
+from backend.engine.policy import growth_tolerance_range, sleeve_of
 from backend.engine.rebalancer import (
     check_drift,
     max_drift_value,
@@ -42,6 +43,13 @@ def _targets(holdings: list[Holding]) -> dict[str, float]:
     return {h.ticker: h.target_weight for h in holdings if (h.target_weight or 0.0) > 0}
 
 
+def _drift_report(weights: dict[str, float], targets: dict[str, float], holdings: list[Holding]):
+    """Band, portfolio-drift and growth-share (policy ±5pp) triggers."""
+    group_of = {h.ticker: sleeve_of(h.asset_class) for h in holdings}
+    target_growth = sum(w for t, w in targets.items() if group_of.get(t) == "growth")
+    return check_drift(weights, targets, group_of, {"growth": growth_tolerance_range(target_growth)})
+
+
 def _asset_class_weights(weights: dict[str, float], holdings: list[Holding]) -> dict[str, float]:
     ac = {h.ticker: h.asset_class for h in holdings}
     out: dict[str, float] = {}
@@ -59,7 +67,7 @@ async def get_performance(portfolio_id: int, db: Session = Depends(get_db)):
     portfolio, holdings = _load(db, portfolio_id)
     val = mark_to_market(portfolio, holdings, fetch=False)
     targets = _targets(holdings)
-    report = check_drift(val["weights"], targets)
+    report = _drift_report(val["weights"], targets, holdings)
     db.commit()
 
     return {
@@ -102,7 +110,7 @@ async def get_performance(portfolio_id: int, db: Session = Depends(get_db)):
 
 def _plan(portfolio: Portfolio, holdings: list[Holding], val: dict):
     targets = _targets(holdings)
-    report = check_drift(val["weights"], targets)
+    report = _drift_report(val["weights"], targets, holdings)
     trades = []
     if report.needs_rebalance:
         book = load_book(portfolio, holdings)
@@ -157,7 +165,7 @@ async def check_rebalance(portfolio_id: int, db: Session = Depends(get_db)):
     db.commit()
     if val["stale_tickers"] or val["unpriced_tickers"]:
         targets = _targets(holdings)
-        report = check_drift(val["weights"], targets)
+        report = _drift_report(val["weights"], targets, holdings)
         report.reasons.append("trade plan withheld: some holdings have no current price")
         return _response(portfolio, holdings, val, targets, report, [])
     try:
@@ -240,7 +248,7 @@ async def contribute(portfolio_id: int, request: ContributionRequest, db: Sessio
     db.flush()
     holdings = db.query(Holding).filter(Holding.portfolio_id == portfolio_id).all()
     after = mark_to_market(portfolio, holdings, fetch=False)
-    report = check_drift(after["weights"], targets)
+    report = _drift_report(after["weights"], targets, holdings)
     db.commit()
 
     return {

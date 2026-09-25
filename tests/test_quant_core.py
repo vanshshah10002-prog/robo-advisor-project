@@ -9,8 +9,6 @@ import pandas as pd
 import pytest
 
 from backend.config import (
-    ASSET_GROUP_CAPS,
-    BOND_ASSET_CLASSES,
     EXPECTED_RETURN_CLAMP,
     MVO_RISK_FREE_RATE,
     RISK_FREE_CLAMP,
@@ -55,101 +53,6 @@ def mu_cov(synthetic_returns):
     mu = log_monthly_to_annual_arith(synthetic_returns.mean())
     cov = ewma_lw_cov(synthetic_returns)
     return mu, cov
-
-
-def _bounds(tickers):
-    from backend.engine.optimizer import _get_weight_bounds
-    return _get_weight_bounds(list(tickers), AC_MAP)
-
-
-def _group_weight(weights: dict, classes) -> float:
-    return sum(w for t, w in weights.items() if AC_MAP.get(t, "") in classes)
-
-
-# =============================================================================
-# Group caps
-# =============================================================================
-
-class TestGroupCaps:
-    def test_risk_ladder_respects_caps_at_all_levels(self, mu_cov):
-        from backend.engine.optimizer import build_risk_targeted_portfolio
-        from backend.config import GOLD_ASSET_CLASSES
-        mu, cov = mu_cov
-        for rs in [1, 3, 5, 8, 10]:
-            res = build_risk_targeted_portfolio(rs, mu, cov, _bounds(mu.index), asset_class_map=AC_MAP)
-            w = res["weights"]
-            assert _group_weight(w, BOND_ASSET_CLASSES) <= ASSET_GROUP_CAPS["bonds"] + 1e-3
-            assert _group_weight(w, GOLD_ASSET_CLASSES) <= ASSET_GROUP_CAPS["gold"] + 1e-3
-            assert abs(sum(w.values()) - 1.0) < 1e-6
-
-    def test_cash_exempt_from_bond_cap(self, mu_cov):
-        from backend.engine.optimizer import build_risk_targeted_portfolio
-        mu, cov = mu_cov
-        res = build_risk_targeted_portfolio(1, mu, cov, _bounds(mu.index), asset_class_map=AC_MAP)
-        # Conservative portfolio must be able to hold a big defensive sleeve:
-        # cash + bonds combined well above the 20% bond cap alone.
-        defensive = res["weights"].get("CASH", 0) + _group_weight(res["weights"], BOND_ASSET_CLASSES)
-        assert defensive > 0.30
-
-
-# =============================================================================
-# Risk ladder
-# =============================================================================
-
-class TestRiskLadder:
-    def test_target_vol_monotone(self, mu_cov):
-        from backend.engine.optimizer import build_risk_targeted_portfolio
-        mu, cov = mu_cov
-        targets = []
-        for rs in range(1, 11):
-            res = build_risk_targeted_portfolio(rs, mu, cov, _bounds(mu.index), asset_class_map=AC_MAP)
-            targets.append(res["target_volatility"])
-        assert all(b >= a - 1e-9 for a, b in zip(targets, targets[1:])), targets
-
-    def test_realized_portfolio_vol_monotone(self, mu_cov):
-        from backend.engine.optimizer import build_risk_targeted_portfolio
-        mu, cov = mu_cov
-        vols = []
-        for rs in [1, 5, 10]:
-            res = build_risk_targeted_portfolio(rs, mu, cov, _bounds(mu.index), asset_class_map=AC_MAP)
-            w = pd.Series(res["weights"]).reindex(cov.columns).fillna(0.0)
-            vols.append(float(np.sqrt(w.values @ cov.values @ w.values)))
-        assert vols[0] < vols[1] < vols[2]
-
-    def test_conservative_uses_cash(self, mu_cov):
-        from backend.engine.optimizer import build_risk_targeted_portfolio
-        mu, cov = mu_cov
-        res = build_risk_targeted_portfolio(1, mu, cov, _bounds(mu.index), asset_class_map=AC_MAP)
-        assert res["weights"].get("CASH", 0) > 0.20
-
-
-# =============================================================================
-# Crisis buffer (cap-safe)
-# =============================================================================
-
-class TestCrisisBuffer:
-    def test_buffer_to_cash_keeps_caps_and_sums_to_one(self):
-        from backend.engine.optimizer import apply_crisis_buffer
-        w = {"CASH": 0.05, "GILT": 0.18, "EQ_US": 0.5, "EQ_GL": 0.27}
-        out = apply_crisis_buffer(w, "CASH", AC_MAP, 0.05)
-        assert abs(sum(out.values()) - 1.0) < 1e-9
-        assert out["CASH"] > w["CASH"]
-        assert _group_weight(out, BOND_ASSET_CLASSES) <= ASSET_GROUP_CAPS["bonds"] + 1e-9
-
-    def test_buffer_to_gilts_clamped_by_bond_cap(self):
-        from backend.engine.optimizer import apply_crisis_buffer
-        # bonds already at 18% — a 5% gilt buffer must be clamped to 2%
-        w = {"GILT": 0.18, "EQ_US": 0.5, "EQ_GL": 0.32}
-        out = apply_crisis_buffer(w, "GILT", AC_MAP, 0.05)
-        assert _group_weight(out, BOND_ASSET_CLASSES) <= ASSET_GROUP_CAPS["bonds"] + 1e-9
-        assert abs(sum(out.values()) - 1.0) < 1e-9
-
-    def test_input_not_mutated(self):
-        from backend.engine.optimizer import apply_crisis_buffer
-        w = {"CASH": 0.1, "EQ_US": 0.9}
-        snapshot = dict(w)
-        apply_crisis_buffer(w, "CASH", AC_MAP, 0.05)
-        assert w == snapshot
 
 
 # =============================================================================

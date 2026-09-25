@@ -205,9 +205,50 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
 }
 
 # =============================================================
-# GROUP (SECTOR) ALLOCATION CAPS — total weight across all members
-# Enforced as portfolio-level constraints in the optimizer (pypfopt sector
-# constraints), independent of per-asset ALLOCATION_CONSTRAINTS above.
+# ALLOCATION POLICY — how a risk score becomes a portfolio
+# =============================================================
+# See docs/PORTFOLIO_REMEDIATION_PLAN.md §2.5.
+# Risk is the share in growth assets (Betterment 0–100% stocks; Vanguard
+# LifeStrategy 20/40/60/80/100): portfolios are built at exactly
+# growth = 10% × risk score and may drift ±5pp before a rebalance. The rest
+# is the defensive sleeve, where bonds — not cash — do the de-risking.
+GROWTH_ASSET_CLASSES: list[str] = [
+    "us_equity", "uk_equity", "europe_ex_uk_equity", "emerging_market_equity",
+    "japan_equity", "asia_pacific_equity", "global_reits", "commodities_gold",
+]
+DEFENSIVE_ASSET_CLASSES: list[str] = [
+    "uk_gilts", "uk_inflation_linked", "global_bonds", "corporate_bonds", "cash_equivalent",
+]
+POLICY_GROWTH_PER_RISK_POINT: float = 0.10
+POLICY_GROWTH_TOLERANCE: float = 0.05
+# Cash may be at most half the defensive sleeve (liquidity buffer, not the de-risker).
+POLICY_CASH_MAX_SHARE_OF_DEFENSIVE: float = 0.50
+# Regional equity (the EQUITY_REGION_REFERENCE blocks) must be at least this
+# share of the growth sleeve; property and gold are diversifiers, not the core.
+POLICY_EQUITY_MIN_SHARE_OF_GROWTH: float = 0.75
+# Per-block maximum weight in the whole portfolio (Wealthfront: 35% for most
+# classes). Regional equity is governed by the region bands below instead.
+POLICY_BLOCK_MAX: dict[str, float] = {
+    "uk_gilts": 0.35,
+    "uk_inflation_linked": 0.20,
+    "global_bonds": 0.35,
+    "corporate_bonds": 0.20,
+    "global_reits": 0.10,
+    "commodities_gold": 0.05,
+    "cash_equivalent": 1.00,   # limited by POLICY_CASH_MAX_SHARE_OF_DEFENSIVE
+}
+# Each equity region's share of total equity stays within
+# reference ± max(ABS, REL × reference) (look-through at region level).
+REGION_BAND_ABS: float = 0.05
+REGION_BAND_REL: float = 0.30
+UK_EQUITY_SHARE_RANGE: tuple[float, float] = (0.10, 0.25)
+# Positions below this are removed by re-solving with them fixed at zero.
+POLICY_MIN_POSITION: float = 0.005
+
+# =============================================================
+# GROUP (SECTOR) ALLOCATION CAPS — LEGACY (backend/eval/legacy_construction.py only)
+# Production uses the allocation policy above. The flat 20% bond cap forced
+# low- and mid-risk portfolios into cash + equity barbells (finding A1).
 # =============================================================
 ASSET_GROUP_CAPS: dict[str, float] = {
     "bonds": 0.20,   # total TERM fixed income ≤ 20% (mandate)
@@ -339,7 +380,7 @@ DUAL_MOMENTUM_REDUCTION: float = 0.50        # Reduce allocation by 50% if negat
 # =============================================================
 # CORRELATION REGIME DETECTION
 # =============================================================
-REGIME_DETECTION_ENABLED: bool = True
+REGIME_DETECTION_ENABLED: bool = False     # strategic by default (Betterment/Wealthfront/Vanguard); see plan P9
 REGIME_HIGH_CORR_THRESHOLD: float = 0.75     # (legacy correlation detector)
 REGIME_VOL_ENTER_Z: float = 1.0              # enter crisis when vol z-score > this
 REGIME_VOL_EXIT_Z: float = 0.5               # remain in crisis until z falls below this (hysteresis)
