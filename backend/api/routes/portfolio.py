@@ -4,14 +4,19 @@ Portfolio API Routes — Build & Manage Portfolios
 Handles portfolio construction, retrieval, and allocation adjustment.
 """
 
+import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.db.database import get_db, init_db
-from backend.db.models import Portfolio, Holding, User
+from backend.db.models import Portfolio, Holding, User, Transaction
+from backend.db.ledger_store import mark_to_market, record_fills
 from backend.api.models import PortfolioRequest, PortfolioResponse, AllocationItem
 from backend.engine.optimizer import build_optimised_portfolio
-from backend.engine.asset_universe import get_primary_etf_for_class
+from backend.engine.asset_universe import get_etf_by_ticker
+from backend.engine.ledger import open_portfolio, valuation
+from backend.data.prices import get_latest_gbp_prices
 from backend.config import RISK_BANDS
 
 router = APIRouter()
@@ -58,10 +63,26 @@ async def create_portfolio(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Optimisation failed: {str(e)}")
 
-    # Build allocation items
+    # Price every line in GBP before anything is stored: a portfolio is only
+    # opened at real prices, never at an assumed one.
+    target_by_ticker = result["ticker_weights"]
+    quotes = get_latest_gbp_prices(list(target_by_ticker))
+    missing = [t for t in target_by_ticker if t not in quotes]
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No current price for {', '.join(missing)}; portfolio not opened. Try again later.",
+        )
+    prices = {t: q[0] for t, q in quotes.items()}
+    book, fills = open_portfolio(request.investment_amount, target_by_ticker, prices)
+    val = valuation(book, prices)
+
+    excess_return = result["performance"]["expected_return"] - result["risk_free_rate"]
+
+    # Build allocation items (name taken from the ticker actually bought)
     allocations = []
     for alloc in result["allocations"]:
-        etf = get_primary_etf_for_class(alloc["asset_class"])
+        etf = get_etf_by_ticker(alloc["ticker"])
         allocations.append(AllocationItem(
             asset_class=alloc["asset_class"],
             weight=alloc["weight"],
@@ -83,24 +104,36 @@ async def create_portfolio(
         expected_return=result["performance"]["expected_return"],
         expected_volatility=result["performance"]["volatility"],
         sharpe_ratio=result["performance"]["sharpe_ratio"],
-        alpha=result["performance"]["expected_return"] - 0.02,  # Proxy: mu - rf
+        alpha=excess_return,  # expected return over the live risk-free rate
         total_return_pct=0.0,
+        cash_gbp=book.cash,
+        net_contributions=request.investment_amount,
+        last_valued_at=datetime.datetime.utcnow(),
     )
     db.add(portfolio)
     db.flush()
 
-    # Save holdings
-    for alloc in result["allocations"]:
-        holding = Holding(
+    # Save holdings: units, GBP cost per unit and the price they were bought at
+    ac_by_ticker = {a["ticker"]: a["asset_class"] for a in result["allocations"]}
+    for ticker, weight in target_by_ticker.items():
+        price, as_of = quotes[ticker]
+        db.add(Holding(
             portfolio_id=portfolio.id,
-            ticker=alloc["ticker"],
-            asset_class=alloc["asset_class"],
-            quantity=alloc["amount_gbp"],  # Simplified: store as value
-            target_weight=alloc["weight"],
-            current_weight=alloc["weight"],
-        )
-        db.add(holding)
+            ticker=ticker,
+            asset_class=ac_by_ticker.get(ticker, "unknown"),
+            quantity=book.units.get(ticker, 0.0),
+            average_cost=book.avg_cost.get(ticker, 0.0),
+            target_weight=weight,
+            current_weight=val["weights"].get(ticker, 0.0),
+            current_price=price,
+            price_as_of=datetime.datetime.combine(as_of, datetime.time()),
+        ))
 
+    db.add(Transaction(
+        portfolio_id=portfolio.id, ticker="CASH", action="deposit", quantity=0.0,
+        price=1.0, value=request.investment_amount, notes="Initial investment",
+    ))
+    record_fills(db, portfolio.id, fills, notes="Initial purchase")
     db.commit()
 
     risk_band = RISK_BANDS.get(round(request.risk_score), "Unknown")
@@ -113,7 +146,7 @@ async def create_portfolio(
         expected_annual_return=result["performance"]["expected_return"],
         expected_volatility=result["performance"]["volatility"],
         sharpe_ratio=result["performance"]["sharpe_ratio"],
-        alpha=result["performance"]["expected_return"] - 0.02,
+        alpha=excess_return,
         total_return_pct=0.0,
         total_expense_ratio=result["total_expense_ratio"],
         investment_amount=request.investment_amount,
@@ -151,10 +184,18 @@ async def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
         "expected_return": portfolio.expected_return,
         "expected_volatility": portfolio.expected_volatility,
         "sharpe_ratio": portfolio.sharpe_ratio,
+        "cash": portfolio.cash_gbp or 0.0,
+        "net_contributions": portfolio.net_contributions or 0.0,
+        "total_return_pct": portfolio.total_return_pct or 0.0,
+        "last_valued_at": portfolio.last_valued_at.isoformat() if portfolio.last_valued_at else None,
         "holdings": [
             {
                 "ticker": h.ticker,
                 "asset_class": h.asset_class,
+                "units": h.quantity,
+                "average_cost": h.average_cost,
+                "current_price": h.current_price,
+                "price_as_of": h.price_as_of.date().isoformat() if h.price_as_of else None,
                 "target_weight": h.target_weight,
                 "current_weight": h.current_weight,
             }
@@ -195,47 +236,29 @@ async def get_user_portfolios(user_id: int, db: Session = Depends(get_db)):
 @router.post("/portfolio/{portfolio_id}/refresh")
 async def refresh_portfolio_prices(portfolio_id: int, db: Session = Depends(get_db)):
     """
-    Refresh current market prices for all holdings and calculate real-time performance.
-    """
-    from backend.data.market_data import get_current_price
-    import datetime
+    Mark the portfolio to market at the latest GBP prices.
 
+    Value = units × price for each holding, plus cash. Return is measured on
+    net contributions. Holdings that could not be priced keep their last price
+    and are listed in `stale_tickers`.
+    """
     portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
     holdings = db.query(Holding).filter(Holding.portfolio_id == portfolio_id).all()
-    
-    current_total_value = 0.0
-    for holding in holdings:
-        price = get_current_price(holding.ticker)
-        if price:
-            holding.current_price = price
-            # In this simplified model, we store 'quantity' as the initial GBP amount 
-            # to calculate return easily without requiring a full brokerage ledger.
-            # current_value = (initial_gbp / initial_price) * current_price
-            # But the 'quantity' field in our DB was populated with amount_gbp in create_portfolio.
-            # So current_value = quantity * (current_price / initial_price_at_creation)
-            # Since we don't store initial_price_at_creation explicitly in Holding yet, 
-            # we'll assume the price was fetched and stored during creation in a real system.
-            # For this MVP, we'll simulate the return by comparing current vs expected.
-            
-            # SIMULATION: If we don't have historical purchase price, we'll use a random drift 
-            # for the demo or try to fetch price from creation date.
-            # Better logic: calculate % change if possible, otherwise use a placeholder.
-            holding.last_updated = datetime.datetime.utcnow()
-    
-    # Simple mockup of return for UI demo if no historical price mapping exists
-    # In production, we'd fetch price exactly at portfolio.created_at
-    days_since = (datetime.datetime.utcnow() - portfolio.created_at).days
-    simulated_return = (portfolio.expected_return / 365.0) * days_since
-    portfolio.total_return_pct = simulated_return
-    
+    val = mark_to_market(portfolio, holdings, fetch=True)
     db.commit()
-    
+
     return {
         "portfolio_id": portfolio.id,
-        "total_return_pct": portfolio.total_return_pct,
-        "status": "refreshed"
+        "total_value": round(val["total"], 2),
+        "invested_value": round(val["invested"], 2),
+        "cash": round(val["cash"], 2),
+        "net_contributions": round(val["net_contributions"], 2),
+        "total_return_pct": val["total_return_pct"],
+        "stale_tickers": val["stale_tickers"],
+        "unpriced_tickers": val["unpriced_tickers"],
+        "valued_at": portfolio.last_valued_at.isoformat(),
+        "status": "refreshed",
     }
-

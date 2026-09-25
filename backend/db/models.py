@@ -75,7 +75,10 @@ class Portfolio(Base):
     expected_volatility = Column(Float, nullable=True)
     sharpe_ratio = Column(Float, nullable=True)
     alpha = Column(Float, nullable=True)  # Excess return over risk-free
-    total_return_pct = Column(Float, default=0.0)  # Realised return since creation
+    total_return_pct = Column(Float, default=0.0)  # Marked-to-market return on net contributions
+    cash_gbp = Column(Float, default=0.0)  # Uninvested cash held in the portfolio
+    net_contributions = Column(Float, default=0.0)  # Deposits minus withdrawals, GBP
+    last_valued_at = Column(DateTime, nullable=True)  # When prices were last marked
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
@@ -95,11 +98,12 @@ class Holding(Base):
     portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
     ticker = Column(String, nullable=False)
     asset_class = Column(String, nullable=False)
-    quantity = Column(Float, nullable=False, default=0.0)
-    average_cost = Column(Float, nullable=False, default=0.0)
+    quantity = Column(Float, nullable=False, default=0.0)  # Units held
+    average_cost = Column(Float, nullable=False, default=0.0)  # GBP per unit (section 104 pool)
     target_weight = Column(Float, nullable=False)
     current_weight = Column(Float, nullable=True)
-    current_price = Column(Float, nullable=True)
+    current_price = Column(Float, nullable=True)  # Last GBP price per unit
+    price_as_of = Column(DateTime, nullable=True)  # Market date of current_price
     last_updated = Column(DateTime, default=datetime.datetime.utcnow)
 
     portfolio = relationship("Portfolio", back_populates="holdings")
@@ -114,11 +118,13 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     portfolio_id = Column(Integer, ForeignKey("portfolios.id"), nullable=False)
     ticker = Column(String, nullable=False)
-    action = Column(String, nullable=False)  # "buy" | "sell" | "rebalance" | "dividend"
+    action = Column(String, nullable=False)  # "buy" | "sell" | "deposit" | "dividend"
     quantity = Column(Float, nullable=False)
     price = Column(Float, nullable=False)
     value = Column(Float, nullable=False)
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    cost = Column(Float, default=0.0)  # Trading cost in GBP
+    realised_gain = Column(Float, default=0.0)  # GBP, average-cost basis (sells only)
     notes = Column(String, nullable=True)
 
     portfolio = relationship("Portfolio", back_populates="transactions")
