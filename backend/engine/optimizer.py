@@ -796,7 +796,7 @@ def build_optimised_portfolio(
     # Expected returns = trailing+BL blend; covariance = EWMA+Ledoit-Wolf hybrid.
     expense_by_ticker = {t: get_etf_by_ticker(t)["expense_ratio"] for t in tickers}
     mu, cov_matrix, monthly_returns = build_mu_cov(
-        tickers, expense_by_ticker, risk_free_rate=rf_live
+        tickers, expense_by_ticker, risk_free_rate=rf_live, asset_class_of=ac_by_ticker,
     )
     tickers = list(mu.index)
 

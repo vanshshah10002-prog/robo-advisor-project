@@ -277,6 +277,40 @@ RISK_FREE_CLAMP: tuple[float, float] = (0.0, 0.08)
 # estimates outside this band are treated as estimation error, not signal.
 EXPECTED_RETURN_CLAMP: tuple[float, float] = (-0.05, 0.12)
 BLACK_LITTERMAN_TAU: float = 0.05            # Scaling factor for BL prior uncertainty
+
+# Reference (neutral) portfolio for the equilibrium prior: π = λ·Σ·w_ref.
+# A global multi-asset market proxy (Doeswijk, Lam & Swinkels 2014) with the
+# equity split by FTSE All-World regional weights and a 20% UK home bias
+# (Vanguard LifeStrategy 2026). Cash is excluded: its E[R] is the live rate.
+# Using asset-class weights, not ETF fund sizes, is what makes the prior an
+# equilibrium (Idzorek; Wealthfront uses the global market portfolio).
+EQUITY_REGION_REFERENCE: dict[str, float] = {   # share of total equity
+    "us_equity": 0.53,
+    "uk_equity": 0.20,
+    "europe_ex_uk_equity": 0.10,
+    "emerging_market_equity": 0.09,
+    "japan_equity": 0.05,
+    "asia_pacific_equity": 0.03,
+}
+REFERENCE_EQUITY_SHARE: float = 0.55
+REFERENCE_MARKET_WEIGHTS: dict[str, float] = {
+    **{ac: REFERENCE_EQUITY_SHARE * w for ac, w in EQUITY_REGION_REFERENCE.items()},
+    "uk_gilts": 0.10,
+    "uk_inflation_linked": 0.05,
+    "global_bonds": 0.18,
+    "corporate_bonds": 0.07,
+    "global_reits": 0.03,
+    "commodities_gold": 0.02,
+}
+# Market price of risk λ, fixed (He & Litterman 1999 use 2.5). Fitting it to a
+# trailing window made the prior swing with recent returns.
+BL_RISK_AVERSION: float = 2.5
+# Weight on the trailing (historical) mean in the expected-return blend; the
+# rest is the equilibrium prior. Errors in means dominate MVO error (Chopra &
+# Ziemba 1993), so history gets a minority weight — and less when the common
+# estimation window is shorter than TRAILING_FULL_WEIGHT_MONTHS.
+EXPECTED_RETURN_TRAILING_WEIGHT: float = 0.25
+TRAILING_FULL_WEIGHT_MONTHS: int = 120
 MVO_EFFICIENT_FRONTIER_POINTS: int = 50      # Number of portfolios on frontier curve
 
 # =============================================================
