@@ -39,3 +39,6 @@ backend/db/migrations/versions/*.pyc
 # Coverage
 htmlcov/
 .coverage
+
+# Backtest price snapshot (Yahoo data; rebuilt with --refresh)
+backend/data/backtest_snapshot/

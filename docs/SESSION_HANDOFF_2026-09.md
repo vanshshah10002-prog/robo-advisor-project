@@ -56,7 +56,12 @@ Key files:
 - `backend/engine/asset_universe.py` (`resolve_ticker_map`)
 - `backend/config.py`
 
-## 3. Next task: walk-forward backtest (not started)
+## 3. Next task: walk-forward backtest (done, 2026-09-25)
+
+**Status:** implemented and run locally on real prices. Method, results and findings are in
+[`WALKFORWARD_BACKTEST.md`](WALKFORWARD_BACKTEST.md); generated tables are in `reports/walkforward/`.
+One deviation from the design below: Yahoo's adjusted close drops dividends for pence-quoted
+lines, so prices are rebuilt from raw closes plus ex-date dividends (see that doc, §1).
 
 ### What the user asked for
 - Backtest the new construction at **risk 3, 5, 7 and 10**.

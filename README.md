@@ -16,6 +16,7 @@ A sophisticated, UK-focused robo-advisory platform inspired by Wealthfront's met
 - **Holdings Ledger** — Units, cost basis and transactions; values marked to market at GBP prices
 - **Band-Based Rebalancing** — Per-holding tolerance bands, portfolio drift and growth-share triggers; deposits invested where underweight; netted trade plans with cost and CGT estimates
 - **Historical Backtesting** — Benchmark comparison, CAGR, Sharpe, max drawdown
+- **Walk-Forward Backtest** — The live construction replayed point in time (no look-ahead) with band rebalancing, trading costs and forecast-vs-realised accuracy (`make walkforward`, see [docs/WALKFORWARD_BACKTEST.md](docs/WALKFORWARD_BACKTEST.md))
 - **Regime Detection** — Optional (off by default) volatility/drawdown overlay that lowers the growth target inside the optimiser
 - **Dual Momentum Overlay** — Optional tactical allocation (Antonacci, 2014)
 - **ISA Optimisation** — Tax-drag-aware asset placement
