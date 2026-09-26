@@ -5,6 +5,7 @@ Handles portfolio construction, retrieval, and allocation adjustment.
 """
 
 import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -12,14 +13,90 @@ from sqlalchemy.orm import Session
 from backend.db.database import get_db, init_db
 from backend.db.models import Portfolio, Holding, RiskProfile, User, Transaction
 from backend.db.ledger_store import mark_to_market, record_fills
-from backend.api.models import PortfolioRequest, PortfolioResponse, AllocationItem
+from backend.api.models import (
+    AllocationItem, ConstructionResponse, PortfolioListItem, PortfolioRequest, PortfolioResponse,
+    PreviewAllocation, PreviewRequest, PreviewResponse,
+)
 from backend.engine.optimizer import OptimisationError, build_optimised_portfolio
 from backend.engine.asset_universe import get_etf_by_ticker
+from backend.engine.construction import (
+    construction_cache, policy_summary, scaled_allocations, snapshot_from_result,
+)
 from backend.engine.ledger import open_portfolio, valuation
+from backend.engine.policy import sleeve_of
 from backend.data.prices import get_latest_gbp_prices
 from backend.config import RISK_BANDS
 
 router = APIRouter()
+
+
+def _effective_risk(db: Session, user_id: Optional[int], requested: float) -> float:
+    """
+    The suitable risk level is the one assessed in the stored profile (with its
+    short-horizon cap and conservative adjustments). A request may ask for
+    LESS risk, never more.
+    """
+    if user_id is None:
+        return requested
+    profile = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
+    if profile is not None and requested > profile.composite_score:
+        return profile.composite_score
+    return requested
+
+
+def _construct(risk_score: float) -> dict:
+    """
+    The construction for this risk score, reused from a recent preview when
+    there is one, so the portfolio opened is the one the investor was shown.
+    Built per GBP 1; amounts are scaled per request.
+    """
+    try:
+        result, _ = construction_cache.get_or_build(
+            risk_score, lambda: build_optimised_portfolio(risk_score=risk_score, investment_amount=1.0),
+        )
+        return result
+    except OptimisationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimisation failed: {str(e)}")
+
+
+@router.post("/portfolio/preview", response_model=PreviewResponse)
+async def preview_portfolio(request: PreviewRequest, db: Session = Depends(get_db)):
+    """
+    Build a portfolio without opening it: allocations, expected figures and the
+    policy that shaped it. Nothing is stored and nothing is bought. Opening a
+    portfolio at the same risk level within a few hours reuses this construction.
+    """
+    risk_score = _effective_risk(db, request.user_id, request.risk_score)
+    result = _construct(risk_score)
+    allocations = []
+    for a in scaled_allocations(result, request.investment_amount):
+        etf = get_etf_by_ticker(a["ticker"])
+        allocations.append(PreviewAllocation(
+            asset_class=a["asset_class"], sleeve=sleeve_of(a["asset_class"]), ticker=a["ticker"],
+            etf_name=etf["name"] if etf else a["ticker"], weight=a["weight"],
+            amount_gbp=a["amount_gbp"], expense_ratio=a["expense_ratio"],
+        ))
+    perf = result["performance"]
+    ter = float(result.get("total_expense_ratio") or 0.0)
+    return PreviewResponse(
+        requested_risk_score=request.risk_score,
+        risk_score=risk_score,
+        capped=risk_score < request.risk_score,
+        risk_band=RISK_BANDS.get(round(risk_score), "Unknown"),
+        allocations=allocations,
+        expected_annual_return=perf["expected_return"],
+        expected_volatility=perf["volatility"],
+        sharpe_ratio=perf["sharpe_ratio"],
+        total_expense_ratio=ter,
+        annual_fund_cost_gbp=round(ter * request.investment_amount, 2),
+        risk_free_rate=result.get("risk_free_rate"),
+        policy=policy_summary(result),
+        as_of=datetime.date.today().isoformat(),
+    )
 
 
 @router.post("/portfolio", response_model=PortfolioResponse)
@@ -50,26 +127,8 @@ async def create_portfolio(
         db.add(user)
         db.flush()
 
-    # The suitable risk level is the one assessed in the stored profile (with
-    # its short-horizon cap and conservative adjustments). A request may ask
-    # for LESS risk, never more.
-    risk_score = request.risk_score
-    profile = db.query(RiskProfile).filter(RiskProfile.user_id == request.user_id).first()
-    if profile is not None and risk_score > profile.composite_score:
-        risk_score = profile.composite_score
-
-    try:
-        result = build_optimised_portfolio(
-            risk_score=risk_score,
-            investment_amount=request.investment_amount,
-            selected_asset_classes=getattr(request, 'selected_asset_classes', None),
-        )
-    except OptimisationError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Optimisation failed: {str(e)}")
+    risk_score = _effective_risk(db, request.user_id, request.risk_score)
+    result = _construct(risk_score)
 
     # Price every line in GBP before anything is stored: a portfolio is only
     # opened at real prices, never at an assumed one.
@@ -89,7 +148,7 @@ async def create_portfolio(
 
     # Build allocation items (name taken from the ticker actually bought)
     allocations = []
-    for alloc in result["allocations"]:
+    for alloc in scaled_allocations(result, request.investment_amount):
         etf = get_etf_by_ticker(alloc["ticker"])
         allocations.append(AllocationItem(
             asset_class=alloc["asset_class"],
@@ -117,6 +176,7 @@ async def create_portfolio(
         cash_gbp=book.cash,
         net_contributions=request.investment_amount,
         last_valued_at=datetime.datetime.utcnow(),
+        construction=snapshot_from_result(result, risk_score),
     )
     db.add(portfolio)
     db.flush()
@@ -212,33 +272,60 @@ async def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/portfolios/user/{user_id}")
+@router.get("/portfolios/user/{user_id}", response_model=list[PortfolioListItem])
 async def get_user_portfolios(user_id: int, db: Session = Depends(get_db)):
     """
-    List all portfolios for a user.
-
-    Parameters:
-        user_id (int): User ID.
-
-    Returns:
-        list[dict]: Summary of each portfolio.
+    A user's active portfolios, newest first, each valued at its last stored
+    prices (no network). A portfolio never valued since the ledger was
+    introduced reports no value rather than a guessed one.
     """
+    from backend.db.ledger_store import is_legacy_holding, last_prices, load_book
+
     portfolios = db.query(Portfolio).filter(
         Portfolio.user_id == user_id,
-        Portfolio.is_active == True,
-    ).all()
+        Portfolio.is_active == True,  # noqa: E712 (SQLAlchemy column comparison)
+    ).order_by(Portfolio.created_at.desc()).all()
 
-    return [
-        {
-            "portfolio_id": p.id,
-            "name": p.name,
-            "risk_score": p.risk_score,
-            "investment_amount": p.investment_amount,
-            "expected_return": p.expected_return,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
-        }
-        for p in portfolios
-    ]
+    items = []
+    for p in portfolios:
+        holdings = db.query(Holding).filter(Holding.portfolio_id == p.id).all()
+        total_value = None
+        if not any(is_legacy_holding(h) for h in holdings):
+            book = load_book(p, holdings)
+            prices = last_prices(holdings)
+            if all(t in prices for t in book.units):
+                total_value = round(valuation(book, prices)["total"], 2)
+        contrib = p.net_contributions or None
+        items.append(PortfolioListItem(
+            portfolio_id=p.id,
+            name=p.name,
+            risk_score=p.risk_score,
+            investment_amount=p.investment_amount,
+            monthly_contribution=p.monthly_contribution or 0.0,
+            uses_isa=bool(p.uses_isa),
+            expected_return=p.expected_return,
+            created_at=p.created_at.isoformat() if p.created_at else None,
+            total_value=total_value,
+            net_contributions=contrib,
+            total_return_pct=(total_value - contrib) / contrib if total_value is not None and contrib else None,
+            last_valued_at=p.last_valued_at.isoformat() if p.last_valued_at else None,
+            holdings_count=sum(1 for h in holdings if (h.quantity or 0.0) > 0),
+        ))
+    return items
+
+
+@router.get("/portfolio/{portfolio_id}/construction", response_model=ConstructionResponse)
+async def get_construction(portfolio_id: int, db: Session = Depends(get_db)):
+    """
+    How the portfolio was built, as recorded when it was opened: per-fund
+    estimates, correlations, the policy and the efficient frontier. Portfolios
+    opened before this was recorded return `recorded: false`.
+    """
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    snapshot = portfolio.construction
+    return ConstructionResponse(portfolio_id=portfolio.id, recorded=snapshot is not None, snapshot=snapshot)
 
 
 @router.post("/portfolio/{portfolio_id}/refresh")

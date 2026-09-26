@@ -4,7 +4,7 @@
 # Usage: make <command>
 # ============================================================
 
-.PHONY: install dev seed backtest walkforward migrate update-prices backend frontend
+.PHONY: install dev seed backtest walkforward track-record migrate update-prices backend frontend
 
 # Install all dependencies (Python + Node)
 install:
@@ -38,6 +38,10 @@ backtest:
 # Walk-forward backtest (risk 3/5/7/10, £100k, 5 years, no look-ahead) → reports/walkforward/
 walkforward:
 	python scripts/run_walkforward_backtest.py
+
+# Same backtest at every risk level 1–10 → backend/data/track_record.json (served by the API)
+track-record:
+	python scripts/build_track_record.py
 
 # Refresh local price cache
 update-prices:

@@ -15,6 +15,7 @@ from backend.api.routes.portfolio import router as portfolio_router
 from backend.api.routes.simulate import router as simulate_router
 from backend.api.routes.performance import router as performance_router
 from backend.api.routes.market import router as market_router
+from backend.api.routes.insight import router as insight_router
 from backend.db.database import init_db
 
 
@@ -54,6 +55,7 @@ app.include_router(portfolio_router, prefix="/api", tags=["Portfolio"])
 app.include_router(simulate_router, prefix="/api", tags=["Simulation"])
 app.include_router(performance_router, prefix="/api", tags=["Performance"])
 app.include_router(market_router, prefix="/api", tags=["Market Data"])
+app.include_router(insight_router, prefix="/api", tags=["Insight"])
 
 
 @app.get("/", tags=["Health"])

@@ -41,7 +41,12 @@ FAKE_RESULT = {
 def api(monkeypatch):
     import backend.api.routes.portfolio as portfolio_routes
     import backend.data.prices as prices_mod
+    from backend.db.database import init_db
+    from backend.engine.construction import construction_cache
     from backend.main import app
+
+    init_db()   # TestClient without a `with` block does not run the app's startup
+    construction_cache.clear()
 
     state = {"prices": {"VUAG.L": 100.0, "IGLT.L": 10.0}}
 

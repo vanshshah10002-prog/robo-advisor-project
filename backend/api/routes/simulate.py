@@ -103,7 +103,9 @@ async def run_monte_carlo_simulation(
     """
     Run Monte Carlo simulation for a portfolio.
 
-    Can use either a saved portfolio (by portfolio_id) or ad-hoc weights.
+    Uses a saved portfolio (portfolio_id), ad-hoc fund weights, or
+    portfolio-level annual_return and annual_volatility (an unsaved preview).
+    Optional goal (in today's money) and real-terms output.
 
     Parameters:
         request (MonteCarloRequest): Simulation parameters.
@@ -111,13 +113,12 @@ async def run_monte_carlo_simulation(
     Returns:
         MonteCarloResponse: Percentile paths and statistics.
     """
+    options = {"goal_amount": request.goal_amount, "real_terms": request.real_terms}
     if request.portfolio_id:
-        # Load portfolio weights
+        # A saved portfolio: project with the figures stored when it was built.
         portfolio = db.query(Portfolio).filter(Portfolio.id == request.portfolio_id).first()
         if not portfolio:
             raise HTTPException(status_code=404, detail="Portfolio not found")
-
-        # Use quick projection with saved performance metrics
         result = quick_projection(
             initial_investment=request.initial_investment,
             monthly_contribution=request.monthly_contribution,
@@ -125,9 +126,10 @@ async def run_monte_carlo_simulation(
             annual_volatility=portfolio.expected_volatility or 0.12,
             years=request.years,
             n_simulations=request.n_simulations,
+            **options,
         )
     elif request.weights:
-        # Ad-hoc weights — need full computation
+        # Ad-hoc weights: estimate inputs for those funds.
         tickers = list(request.weights.keys())
         try:
             mu, cov_matrix, _ = build_mu_cov(tickers, {})
@@ -142,8 +144,23 @@ async def run_monte_carlo_simulation(
             cov_matrix=cov_matrix,
             years=request.years,
             n_simulations=request.n_simulations,
+            **options,
+        )
+    elif request.annual_return is not None and request.annual_volatility is not None:
+        # A preview not yet saved: project with its portfolio-level figures.
+        result = quick_projection(
+            initial_investment=request.initial_investment,
+            monthly_contribution=request.monthly_contribution,
+            annual_return=request.annual_return,
+            annual_volatility=request.annual_volatility,
+            years=request.years,
+            n_simulations=request.n_simulations,
+            **options,
         )
     else:
-        raise HTTPException(status_code=400, detail="Provide portfolio_id or weights")
+        raise HTTPException(
+            status_code=400,
+            detail="Provide portfolio_id, weights, or annual_return with annual_volatility",
+        )
 
     return MonteCarloResponse(**result)

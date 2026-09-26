@@ -298,6 +298,9 @@ REBALANCE_CHECK_FREQUENCY: str = "daily"     # check often, trade rarely (Daryan
 # ~0.10% covers typical UK ETF bid-ask half-spread + commission. UK ETFs are exempt
 # from the 0.5% stamp duty that applies to individual LSE shares.
 TRANSACTION_COST_BPS: float = 10.0
+# A previewed construction is reused when the investor confirms within this
+# window, so the portfolio they open is exactly the one they were shown.
+CONSTRUCTION_CACHE_TTL_SECONDS: float = 6 * 3600
 
 # =============================================================
 # OPTIMIZATION PARAMETERS

@@ -513,6 +513,20 @@ def build_optimised_portfolio(
         by_sleeve[s] = by_sleeve.get(s, 0.0) + w
     cash_w = sum(w for t, w in final_weights.items() if ac_by_ticker.get(t) in CASH_ASSET_CLASSES)
 
+    # Estimation inputs, kept so a portfolio can later show how it was built.
+    # Volatilities carry the same client-facing calibration as `perf`.
+    tickers_used = list(mu.index)
+    cov_used = cov_matrix.loc[tickers_used, tickers_used].to_numpy(dtype=float)
+    sd = np.sqrt(np.clip(np.diag(cov_used), 0.0, None))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        corr = np.where(np.outer(sd, sd) > 0, cov_used / np.outer(sd, sd), 0.0)
+    inputs = {
+        "expected_returns": {t: round(float(mu[t]), 6) for t in tickers_used},
+        "volatilities": {t: round(float(v) * VOL_CALIBRATION_MULTIPLIER, 6) for t, v in zip(tickers_used, sd)},
+        "correlation": {"tickers": tickers_used, "matrix": np.round(corr, 4).tolist()},
+        "vol_calibration": VOL_CALIBRATION_MULTIPLIER,
+    }
+
     return {
         "weights": {ac_by_ticker.get(t, t): w for t, w in final_weights.items()},
         "ticker_weights": final_weights,
@@ -537,4 +551,5 @@ def build_optimised_portfolio(
         "asset_classes_used": [ac_by_ticker[t] for t in mu.index],
         "etf_fallbacks": skipped_etfs,
         "risk_free_rate": round(rf_live, 6),
+        "inputs": inputs,
     }

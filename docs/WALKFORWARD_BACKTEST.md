@@ -10,6 +10,10 @@ construction at risk 3, 5, 7 and 10. Each run starts with £100,000 and covers t
 - To reproduce: `make walkforward`, or `python scripts/run_walkforward_backtest.py --refresh` to
   re-download prices.
 
+- The app serves the same backtest at every risk level (1–10, bands mode, against a two-fund portfolio
+  with the same growth share) from `backend/data/track_record.json`, via
+  `GET /api/strategy/track-record?risk=N`. Rebuild it with `make track-record`.
+
 ## 1. Method
 
 | Piece | Where | What it does |

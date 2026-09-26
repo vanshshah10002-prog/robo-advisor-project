@@ -79,6 +79,7 @@ class Portfolio(Base):
     cash_gbp = Column(Float, default=0.0)  # Uninvested cash held in the portfolio
     net_contributions = Column(Float, default=0.0)  # Deposits minus withdrawals, GBP
     last_valued_at = Column(DateTime, nullable=True)  # When prices were last marked
+    construction = Column(JSON, nullable=True)  # How it was built (engine.construction snapshot)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

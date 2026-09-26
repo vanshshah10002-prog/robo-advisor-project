@@ -63,3 +63,28 @@ def get_latest_gbp_prices(tickers: list[str]) -> dict[str, tuple[float, datetime
         if p is not None:
             out[t] = p
     return out
+
+
+def get_gbp_close_history(tickers: list[str], start: datetime.date) -> pd.DataFrame:
+    """
+    Daily GBP closes from `start` (minus a short FX-alignment margin) to the
+    latest available close, one column per ticker. Tickers without data are
+    left out; missing days stay NaN (callers carry prices forward, never back).
+    """
+    years = max(1, (datetime.date.today() - start).days // 365 + 1)
+    first = pd.Timestamp(start) - pd.Timedelta(days=10)
+    series = {}
+    for t in tickers:
+        df = get_or_fetch_prices(t, fetch_prices_yfinance, years)
+        if df is None or df.empty or "Close" not in df.columns:
+            logger.warning(f"No price history for {t}")
+            continue
+        close = df["Close"].dropna()
+        close.index = pd.to_datetime(close.index)
+        close = close[~close.index.duplicated(keep="last")].sort_index()
+        close = close[close.index >= first]
+        if close.empty:
+            continue
+        gbp = convert_to_gbp(close, _ticker_currency(t, df), years).dropna()
+        series[t] = gbp[gbp > 0]
+    return pd.DataFrame(series).sort_index()
