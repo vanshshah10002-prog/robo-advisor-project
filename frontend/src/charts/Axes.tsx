@@ -1,8 +1,8 @@
 import { clsx } from 'clsx'
+import { anchorOf, spacedLabels, type AxisLabel } from './scales'
 import styles from './Chart.module.css'
 
 const LABEL_GAP = 8
-const EDGE = 24
 
 /** Horizontal hairlines with their values on the left. Zero, if shown, is drawn as the baseline. */
 export function YGrid({
@@ -34,23 +34,14 @@ export function YGrid({
     )
 }
 
-export interface XTick {
-    key: string | number
-    at: number
-    label: string
-}
+export type XTick = AxisLabel
 
-/** Labels under the plot. Labels near an edge anchor to it rather than overhang. */
+/** Labels under the plot. Labels near an edge anchor to it rather than overhang, and none overlap. */
 export function XAxis({ ticks, top, width }: { ticks: readonly XTick[]; top: number; width: number }) {
     return (
         <g className={styles.axis} aria-hidden="true">
-            {ticks.map((t) => (
-                <text
-                    key={t.key}
-                    x={t.at}
-                    y={top + 18}
-                    textAnchor={t.at < EDGE ? 'start' : t.at > width - EDGE ? 'end' : 'middle'}
-                >
+            {spacedLabels(ticks, width).map((t) => (
+                <text key={t.key} x={t.at} y={top + 18} textAnchor={anchorOf(t.at, width)}>
                     {t.label}
                 </text>
             ))}

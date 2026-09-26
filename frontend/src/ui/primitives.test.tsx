@@ -156,4 +156,36 @@ describe('ErrorBoundary', () => {
         )
         expect(screen.getByText('Fine')).toBeInTheDocument()
     })
+
+    it('recovers when its reset key changes, as it does on navigating away', () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {})
+        const view = render(
+            <ErrorBoundary resetKey="/broken">
+                <Boom />
+            </ErrorBoundary>,
+        )
+        expect(screen.getByRole('alert')).toBeInTheDocument()
+        view.rerender(
+            <ErrorBoundary resetKey="/fine">
+                <p>Fine</p>
+            </ErrorBoundary>,
+        )
+        expect(screen.getByText('Fine')).toBeInTheDocument()
+        vi.mocked(console.error).mockRestore()
+    })
+
+    it('keeps a healthy tree mounted when its reset key changes', () => {
+        const view = render(
+            <ErrorBoundary resetKey="/a">
+                <input aria-label="Kept" defaultValue="typed" />
+            </ErrorBoundary>,
+        )
+        const input = screen.getByRole('textbox', { name: 'Kept' })
+        view.rerender(
+            <ErrorBoundary resetKey="/b">
+                <input aria-label="Kept" defaultValue="typed" />
+            </ErrorBoundary>,
+        )
+        expect(screen.getByRole('textbox', { name: 'Kept' })).toBe(input)
+    })
 })

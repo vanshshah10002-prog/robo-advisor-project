@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { contrast } from './contrast'
-import { CATEGORICAL, CHART_INK, DEFENSIVE_RAMP, GROWTH_RAMP, allocationColours, sleeveOf } from './palette'
+import { CATEGORICAL, CHART_INK, DEFENSIVE_RAMP, GROWTH_RAMP, HEAT, heatColour, sleeveColours } from './palette'
 import tokensCss from '../styles/tokens.css?raw'
 
 
@@ -62,32 +62,37 @@ describe('contrast claims in tokens.css', () => {
     })
 })
 
-describe('sleeveOf', () => {
-    it.each(['uk_gilts', 'global_bonds', 'cash_equivalent', 'uk_inflation_linked', 'corporate_bonds'])(
-        '%s is defensive',
-        (ac) => expect(sleeveOf(ac)).toBe('defensive'),
-    )
-
-    it.each(['global_equity', 'uk_equity', 'commodities_gold', 'global_property', 'unknown_class'])(
-        '%s is growth',
-        (ac) => expect(sleeveOf(ac)).toBe('growth'),
-    )
-})
-
-describe('allocationColours', () => {
+describe('sleeveColours', () => {
     it('walks each ramp independently from its darkest step', () => {
-        expect(allocationColours(['global_equity', 'global_bonds', 'uk_equity', 'cash_equivalent'])).toEqual([
-            GROWTH_RAMP[0],
-            DEFENSIVE_RAMP[0],
-            GROWTH_RAMP[1],
-            DEFENSIVE_RAMP[1],
-        ])
+        expect(sleeveColours(['growth', 'defensive', 'growth', 'defensive'])).toEqual([GROWTH_RAMP[0], DEFENSIVE_RAMP[0], GROWTH_RAMP[1], DEFENSIVE_RAMP[1]])
     })
 
     it('wraps a sleeve with more than five holdings', () => {
-        const colours = allocationColours(Array.from({ length: 7 }, (_, i) => `equity_${i}`))
+        const colours = sleeveColours(Array.from({ length: 7 }, () => 'growth' as const))
         expect(colours[5]).toBe(GROWTH_RAMP[0])
         expect(colours[6]).toBe(GROWTH_RAMP[1])
+    })
+})
+
+describe('heatColour', () => {
+    it('runs from the sheet at 0 to the tint at 1, and leaves negatives unshaded', () => {
+        expect(HEAT.low).toBe(token('color-sheet'))
+        expect(heatColour(0)).toBe(HEAT.low)
+        expect(heatColour(-0.4)).toBe(HEAT.low)
+        expect(heatColour(1)).toBe(HEAT.high)
+        expect(heatColour(2)).toBe(HEAT.high)
+    })
+
+    it('is the 60% accent tint over the sheet at 1', () => {
+        const mix = [1, 3, 5].map((i) => {
+            const [a, s] = [token('color-accent'), token('color-sheet')].map((h) => parseInt(h.slice(i, i + 2), 16))
+            return Math.round(0.6 * a + 0.4 * s)
+        })
+        expect(HEAT.high).toBe(`#${mix.map((c) => c.toString(16).padStart(2, '0')).join('')}`)
+    })
+
+    it.each([0, 0.25, 0.5, 0.75, 1])('keeps ink text at 4.5:1 or more at %s', (v) => {
+        expect(contrast(token('color-ink'), heatColour(v))).toBeGreaterThanOrEqual(4.5)
     })
 })
 

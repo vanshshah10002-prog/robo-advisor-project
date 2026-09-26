@@ -4,6 +4,8 @@ Onboarding API Routes — Risk Profiling
 Handles risk questionnaire submission and risk profile retrieval.
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -39,6 +41,22 @@ async def get_minimal_quiz_questions():
     return MINIMAL_QUIZ_QUESTIONS
 
 
+def _resolve_user(db: Session, user_id: Optional[int], name: str) -> User:
+    """
+    The user a profile belongs to. A browser that was given an id sends it
+    back and updates that user; anyone else becomes a new user. Names are
+    never matched: two people called Ada are two people.
+    """
+    user = db.get(User, user_id) if user_id is not None else None
+    if user is None:
+        user = User(name=name)
+        db.add(user)
+        db.flush()
+    else:
+        user.name = name
+    return user
+
+
 @router.post("/risk-profile/quick", response_model=RiskProfileResponse)
 async def submit_quick_risk_profile(
     request: QuickRiskRequest,
@@ -62,11 +80,7 @@ async def submit_quick_risk_profile(
         investment_amount=request.investment_amount,
     )
 
-    user = db.query(User).filter(User.name == request.name).first()
-    if not user:
-        user = User(name=request.name)
-        db.add(user)
-        db.flush()
+    user = _resolve_user(db, request.user_id, request.name)
 
     minimal_answers = [
         {"question_id": 1, "answer": request.loss_reaction},
@@ -147,12 +161,7 @@ async def submit_risk_profile(
         time_horizon_years=request.objective_inputs.time_horizon_years,
     )
 
-    # Create or update user
-    user = db.query(User).filter(User.name == request.name).first()
-    if not user:
-        user = User(name=request.name)
-        db.add(user)
-        db.flush()
+    user = _resolve_user(db, request.user_id, request.name)
 
     # Save risk profile
     existing_profile = db.query(RiskProfile).filter(RiskProfile.user_id == user.id).first()

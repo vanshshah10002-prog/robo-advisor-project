@@ -8,6 +8,8 @@ export interface Column<Row> {
     /** Right-aligned, serif tabular figures. */
     numeric?: boolean
     render: (row: Row) => ReactNode
+    /** Names the value when rows stack on a phone; defaults to `label` when that is text. */
+    stackLabel?: string
 }
 
 export interface DataTableProps<Row> {
@@ -18,38 +20,48 @@ export interface DataTableProps<Row> {
     rowKey: (row: Row) => Key
     /** A totals row, one cell per column, set under a double rule. */
     footer?: readonly ReactNode[]
+    /** On a phone, each row becomes a block of labelled values instead of scrolling sideways. */
+    stack?: boolean
     className?: string
 }
+
+const stackLabel = <Row,>(c: Column<Row>) => c.stackLabel ?? (typeof c.label === 'string' ? c.label : undefined)
+
+const isBlank = (content: ReactNode) => content === '' || content === null || content === undefined || content === false
 
 /**
  * A statement-style table: hairline rows, a ruled head, figures right-aligned
  * in tabular serif, totals under a double rule. The first column heads each row.
  */
-export function DataTable<Row>({ caption, columns, rows, rowKey, footer, className }: DataTableProps<Row>) {
+export function DataTable<Row>({ caption, columns, rows, rowKey, footer, stack = false, className }: DataTableProps<Row>) {
+    // Stacking changes how the cells display, which can drop their table roles, so they are restated.
+    const role = (r: string) => (stack ? r : undefined)
+    // A stacked value is one piece beside its label, however many parts it has (a fund's name and ticker, say).
+    const value = (content: ReactNode) => (stack && !isBlank(content) ? <span className={styles.stackValue}>{content}</span> : content)
     return (
         <div className={clsx(styles.scroll, className)}>
-            <table className={styles.table}>
+            <table className={clsx(styles.table, stack && styles.stack)} role={role('table')}>
                 <caption className="visually-hidden">{caption}</caption>
-                <thead>
-                    <tr>
+                <thead role={role('rowgroup')}>
+                    <tr role={role('row')}>
                         {columns.map((c) => (
-                            <th key={c.key} scope="col" className={clsx(c.numeric && styles.num)}>
+                            <th key={c.key} scope="col" role={role('columnheader')} className={clsx(c.numeric && styles.num)}>
                                 {c.label}
                             </th>
                         ))}
                     </tr>
                 </thead>
-                <tbody>
+                <tbody role={role('rowgroup')}>
                     {rows.map((row) => (
-                        <tr key={rowKey(row)}>
+                        <tr key={rowKey(row)} role={role('row')}>
                             {columns.map((c, i) =>
                                 i === 0 ? (
-                                    <th key={c.key} scope="row" className={clsx(c.numeric && styles.num)}>
+                                    <th key={c.key} scope="row" role={role('rowheader')} className={clsx(c.numeric && styles.num)}>
                                         {c.render(row)}
                                     </th>
                                 ) : (
-                                    <td key={c.key} className={clsx(c.numeric && styles.num)}>
-                                        {c.render(row)}
+                                    <td key={c.key} role={role('cell')} data-label={stackLabel(c)} className={clsx(c.numeric && styles.num)}>
+                                        {value(c.render(row))}
                                     </td>
                                 ),
                             )}
@@ -57,16 +69,16 @@ export function DataTable<Row>({ caption, columns, rows, rowKey, footer, classNa
                     ))}
                 </tbody>
                 {footer && (
-                    <tfoot>
-                        <tr>
+                    <tfoot role={role('rowgroup')}>
+                        <tr role={role('row')}>
                             {columns.map((c, i) =>
                                 i === 0 ? (
-                                    <th key={c.key} scope="row">
+                                    <th key={c.key} scope="row" role={role('rowheader')}>
                                         {footer[i]}
                                     </th>
                                 ) : (
-                                    <td key={c.key} className={clsx(c.numeric && styles.num)}>
-                                        {footer[i]}
+                                    <td key={c.key} role={role('cell')} data-label={stackLabel(c)} className={clsx(c.numeric && styles.num)}>
+                                        {value(footer[i])}
                                     </td>
                                 ),
                             )}

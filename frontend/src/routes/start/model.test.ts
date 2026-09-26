@@ -119,6 +119,11 @@ describe('buildProfileRequest', () => {
         expect(request?.uses_isa).toBe(true)
     })
 
+    it('sends back the id this browser was given, and none when it has none', () => {
+        expect(buildProfileRequest(completeDraft, 7)?.user_id).toBe(7)
+        expect(buildProfileRequest(completeDraft)).not.toHaveProperty('user_id')
+    })
+
     it('builds nothing while a section is incomplete', () => {
         expect(buildProfileRequest(EMPTY_DRAFT)).toBeNull()
         expect(buildProfileRequest({ ...completeDraft, usesIsa: null })).toBeNull()

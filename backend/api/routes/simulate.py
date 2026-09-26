@@ -119,11 +119,16 @@ async def run_monte_carlo_simulation(
         portfolio = db.query(Portfolio).filter(Portfolio.id == request.portfolio_id).first()
         if not portfolio:
             raise HTTPException(status_code=404, detail="Portfolio not found")
+        if portfolio.expected_return is None or not portfolio.expected_volatility:
+            raise HTTPException(
+                status_code=422,
+                detail="This portfolio has no stored expected return and volatility to project from",
+            )
         result = quick_projection(
             initial_investment=request.initial_investment,
             monthly_contribution=request.monthly_contribution,
-            annual_return=portfolio.expected_return or 0.06,
-            annual_volatility=portfolio.expected_volatility or 0.12,
+            annual_return=portfolio.expected_return,
+            annual_volatility=portfolio.expected_volatility,
             years=request.years,
             n_simulations=request.n_simulations,
             **options,

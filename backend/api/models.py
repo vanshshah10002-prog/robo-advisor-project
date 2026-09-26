@@ -32,6 +32,7 @@ class ObjectiveInputs(BaseModel):
 class RiskProfileRequest(BaseModel):
     """Full risk profile submission."""
     name: str = Field(..., min_length=1, description="User's name")
+    user_id: Optional[int] = Field(default=None, ge=1, description="The id this browser was given before, to update that user")
     quiz_answers: list[QuizAnswer] = Field(..., min_length=10, max_length=10)
     objective_inputs: ObjectiveInputs
     uses_isa: bool = Field(default=False, description="Will invest via ISA?")
@@ -40,6 +41,7 @@ class RiskProfileRequest(BaseModel):
 class QuickRiskRequest(BaseModel):
     """Minimal 3-question risk profile submission (fastest onboarding)."""
     name: str = Field(..., min_length=1, description="User's name")
+    user_id: Optional[int] = Field(default=None, ge=1, description="The id this browser was given before, to update that user")
     loss_reaction: int = Field(..., ge=1, le=5, description="Reaction to a 20% drop (1–5)")
     time_horizon_choice: int = Field(..., ge=1, le=5, description="When money is needed (1–5)")
     financial_cushion: int = Field(..., ge=1, le=5, description="Savings buffer / share of wealth (1–5)")

@@ -64,3 +64,33 @@ export function driftScale(items: readonly DriftItem[]): number {
 export function describeRows(title: string, rows: readonly { label: string; value: string }[]): string {
     return [title, ...rows.map((r) => `${r.label} ${r.value}`)].join('. ')
 }
+
+export interface MatrixLabel {
+    key: string
+    /** A readable name: "US shares". */
+    label: string
+    /** A short name for column heads: the ticker. */
+    short: string
+}
+
+/** The most and least related pairs off the diagonal, or null for fewer than two rows. */
+export function extremePairs(matrix: readonly (readonly number[])[]) {
+    const pairs = matrix.flatMap((row, i) => row.slice(i + 1).map((v, k) => ({ at: [i, i + 1 + k] as const, v })))
+    if (pairs.length === 0) return null
+    const closest = pairs.reduce((a, b) => (b.v > a.v ? b : a))
+    const apart = pairs.reduce((a, b) => (b.v < a.v ? b : a))
+    return { closest: closest.at, closestValue: closest.v, apart: apart.at, apartValue: apart.v }
+}
+
+export interface CompareItem {
+    key: string
+    label: string
+    detail?: string
+    /** One value per series, in the order the series are given. */
+    values: readonly [number, number]
+}
+
+/** The largest value across both series, so every bar shares one scale. Never below `floor`. */
+export function compareScale(items: readonly CompareItem[], floor = 0.01): number {
+    return Math.max(floor, ...items.flatMap((i) => i.values))
+}

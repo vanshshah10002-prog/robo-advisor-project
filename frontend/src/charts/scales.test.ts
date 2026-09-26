@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+    anchorOf,
     extent,
     nearestIndex,
     paddedDomain,
     parseDay,
     plotBox,
     sampleIndices,
+    spacedLabels,
     spreadLabels,
     tickCount,
     timeTickFormat,
@@ -116,5 +118,32 @@ describe('plotBox', () => {
 
     it('never goes negative on a tiny container', () => {
         expect(plotBox(10, 10)).toMatchObject({ innerW: 0, innerH: 0 })
+    })
+})
+
+describe('anchorOf', () => {
+    it('anchors labels near an edge to it, and centres the rest', () => {
+        expect(anchorOf(4, 300)).toBe('start')
+        expect(anchorOf(150, 300)).toBe('middle')
+        expect(anchorOf(296, 300)).toBe('end')
+    })
+})
+
+describe('spacedLabels', () => {
+    const tick = (at: number, label = 'Oct 2025') => ({ key: at, at, label })
+
+    it('drops a label that would run into the one before, keeping the first', () => {
+        // "Jul 2025" starts at the left edge and runs right, into a centred "Oct 2025" 61px along.
+        const kept = spacedLabels([tick(1, 'Jul 2025'), tick(61), tick(122), tick(183), tick(244)], 300)
+        expect(kept.map((t) => t.at)).toEqual([1, 122, 183, 244])
+    })
+
+    it('keeps every label when there is room for all of them', () => {
+        const ticks = [tick(40), tick(140), tick(240)]
+        expect(spacedLabels(ticks, 300)).toEqual(ticks)
+    })
+
+    it('drops an end-anchored last label that would collide', () => {
+        expect(spacedLabels([tick(200), tick(280)], 300).map((t) => t.at)).toEqual([200])
     })
 })

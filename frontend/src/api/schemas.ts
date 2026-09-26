@@ -44,6 +44,8 @@ export const objectiveInputsSchema = z.object({
 
 export const riskProfileRequestSchema = z.object({
     name: z.string().trim().min(1),
+    /** The id this browser was given before; without it the backend starts a new user. */
+    user_id: z.number().int().positive().optional(),
     quiz_answers: z
         .array(z.object({ question_id: z.number().int().min(1).max(10), answer: likert }))
         .length(10),
@@ -53,6 +55,7 @@ export const riskProfileRequestSchema = z.object({
 
 export const quickRiskRequestSchema = z.object({
     name: z.string().trim().min(1),
+    user_id: z.number().int().positive().optional(),
     loss_reaction: likert,
     time_horizon_choice: likert,
     financial_cushion: likert,
@@ -174,6 +177,7 @@ export const refreshResultSchema = z.object({
 export const performanceHoldingSchema = z.object({
     ticker: z.string(),
     asset_class: z.string(),
+    sleeve: z.enum(['growth', 'defensive']),
     units: z.number(),
     average_cost: z.number(),
     current_price: z.number().nullable(),

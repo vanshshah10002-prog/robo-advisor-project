@@ -85,7 +85,34 @@ class TestRegistry:
             assert ac in classes, ac
             # The untitled fallback has no description, and title-cases acronyms.
             assert classes[ac]["description"], ac
-            assert not re.search(r"(Uk|Us|Esg|Reits?)", classes[ac]["name"]), classes[ac]["name"]
+            assert not re.search(r"\b(Uk|Us|Esg|Reits?)\b", classes[ac]["name"]), classes[ac]["name"]
+
+    def test_factsheet_links_go_to_the_fund_s_own_issuer(self):
+        """A link to another issuer's product (an iShares silver page for Invesco gold, say) misleads."""
+        import json
+        from pathlib import Path
+        from urllib.parse import urlparse
+        issuer_sites = {
+            "iShares": "ishares.com", "Vanguard": "vanguardinvestor.co.uk", "Invesco": "invesco.com",
+            "Amundi": "amundietf", "Franklin": "franklintempleton", "HSBC": "hsbc", "WisdomTree": "wisdomtree",
+            "L&G": "lgim.com",
+        }
+        registry = json.loads((Path(__file__).parent.parent / "backend" / "data" / "uk_etf_registry.json").read_text(encoding="utf-8"))
+        for etf in registry:
+            url = etf.get("factsheet_url")
+            if not url:
+                continue
+            issuer = etf["name"].split()[0]
+            assert issuer in issuer_sites, f"{etf['ticker']}: add {issuer}'s site to this test"
+            assert issuer_sites[issuer] in urlparse(url).netloc, f"{etf['ticker']} links to {url}"
+
+    def test_core_blocks_are_named_as_the_universe_names_them(self):
+        """A holding is "US shares" on every page, not "US Equity" on some."""
+        from backend.engine.universe_view import BLOCK_INFO
+        from backend.main import app
+        classes = {c["id"]: c for c in TestClient(app).get("/api/asset-classes").json()}
+        for ac in CORE_UNIVERSE:
+            assert classes[ac]["name"] == BLOCK_INFO[ac][0], ac
 
 
 class TestQuoteUnits:

@@ -91,6 +91,16 @@ describe('AllocationBar', () => {
         expect(names[2]).toContain('Cash-like')
     })
 
+    it('leaves out the sleeve split when every holding is in one sleeve', () => {
+        const regions: AllocationItem[] = [
+            { key: 'us', label: 'US shares', sleeve: 'growth', weight: 0.7 },
+            { key: 'uk', label: 'UK shares', sleeve: 'growth', weight: 0.3 },
+        ]
+        render(<AllocationBar title="Where the shares are" items={regions} />)
+        expect(screen.getByRole('img', { name: /^Where the shares are: across 2 holdings\./ })).toBeInTheDocument()
+        expect(screen.queryByText('Growth')).not.toBeInTheDocument()
+    })
+
     it('reads holdings from the keyboard: latest on focus, Home to the first', async () => {
         const user = userEvent.setup()
         const { container } = render(<AllocationBar title="Holdings" items={holdings} />)

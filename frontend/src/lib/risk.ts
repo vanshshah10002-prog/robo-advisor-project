@@ -29,3 +29,8 @@ export function clampLevel(chosen: number | null | undefined, assessed: number):
     if (typeof chosen !== 'number' || !Number.isFinite(chosen)) return top
     return Math.min(top, Math.max(MIN_LEVEL, chosen))
 }
+
+/** The backtest covers whole levels only: the one a portfolio at `score` is compared with. */
+export function nearestTested(score: number): number {
+    return Math.min(MAX_LEVEL, Math.max(MIN_LEVEL, Math.round(score)))
+}

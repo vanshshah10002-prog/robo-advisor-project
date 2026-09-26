@@ -8,7 +8,8 @@ import * as fx from '@/test/fixtures'
 
 warmPages(
     () => import('./ProposalPage'),
-    () => import('@/routes/portfolio/PortfolioPage'),
+    () => import('@/routes/portfolio/PortfolioLayout'),
+    () => import('@/routes/portfolio/overview/OverviewPage'),
     () => import('@/routes/start/StartLayout'),
     () => import('@/routes/start/GoalsPage'),
 )

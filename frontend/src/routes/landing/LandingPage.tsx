@@ -1,13 +1,11 @@
 import { ArrowRight } from '@phosphor-icons/react'
 import { useState } from 'react'
 import { useTrackRecord } from '@/api/queries'
-import { LineChart } from '@/charts'
-import { CATEGORICAL } from '@/lib/palette'
-import { money, moneyCompact } from '@/lib/format'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { useIdentity } from '@/store/session'
 import { ButtonLink } from '@/ui/Button'
 import { ChoiceGroup } from '@/ui/ChoiceGroup'
+import { TrackRecordChart } from '../TrackRecordChart'
 import { trackRecordSentence } from './evidence'
 import styles from './Landing.module.css'
 
@@ -96,28 +94,7 @@ function Evidence() {
                     className={styles.levels}
                 />
             </div>
-            <LineChart
-                title={record.data ? `${money(record.data.initial)} at level ${record.data.risk}, week by week` : 'The walk-forward test'}
-                summary="The strategy against a two-fund portfolio of world shares and global bonds with the same share in shares."
-                provenance="simulated"
-                pending={record.isFetching}
-                empty={record.isError ? `The test results did not load: ${record.error.message}` : record.isPending ? 'Loading the test results…' : undefined}
-                dates={record.data?.series.map((p) => p.date) ?? []}
-                series={[
-                    { key: 'strategy', label: 'These rules', colour: CATEGORICAL[0], values: record.data?.series.map((p) => p.strategy) ?? [] },
-                    { key: 'benchmark', label: 'Two-fund portfolio', colour: CATEGORICAL[1], values: record.data?.series.map((p) => p.benchmark) ?? [] },
-                ]}
-                baseline={record.data ? { value: record.data.initial, label: `${money(record.data.initial)} invested` } : undefined}
-                format={(v) => money(v)}
-                axisFormat={moneyCompact}
-                notes={record.data && (
-                    <ul className={styles.notes}>
-                        {record.data.notes.map((n) => (
-                            <li key={n}>{n}</li>
-                        ))}
-                    </ul>
-                )}
-            />
+            <TrackRecordChart record={record} />
         </section>
     )
 }

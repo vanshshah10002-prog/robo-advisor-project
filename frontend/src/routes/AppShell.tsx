@@ -73,7 +73,7 @@ export default function AppShell() {
             </header>
 
             <main id="main" ref={main} tabIndex={-1} className={styles.main}>
-                <ErrorBoundary key={pathname}>
+                <ErrorBoundary resetKey={pathname}>
                     <Suspense fallback={<p className={styles.loading} aria-busy="true">Loading…</p>}>
                         <Outlet />
                     </Suspense>

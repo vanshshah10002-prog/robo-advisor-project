@@ -6,7 +6,8 @@ import { renderApp, stubApi, warmPages } from '@/test/app'
 import * as fx from '@/test/fixtures'
 
 warmPages(
-    () => import('./PortfolioPage'),
+    () => import('./PortfolioLayout'),
+    () => import('./overview/OverviewPage'),
     () => import('./PortfoliosPage'),
     () => import('@/routes/NotFound'),
 )
@@ -34,7 +35,7 @@ describe('a portfolio', () => {
         expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
             'Worth £124,518 on 25 Sept 2026: £24,518 more than the £100,000 paid in. Every holding is within its band.',
         )
-        expect(await screen.findByText('Portfolio 19 · risk level 5 · ISA')).toBeInTheDocument()
+        expect(await screen.findByText('Portfolio 19 · risk level 5 · ISA · £250 a month')).toBeInTheDocument()
         expect(screen.getByText('Gain or loss').closest('div')).toHaveTextContent('+£24,518')
         expect(screen.getByText('Within its bands')).toBeInTheDocument()
         expect(await screen.findAllByText('Global Equity')).not.toHaveLength(0)
@@ -114,6 +115,16 @@ describe('the list of portfolios', () => {
                 { ...fx.portfolioSummary, portfolio_id: 21, name: 'House deposit' },
                 { ...fx.portfolioSummary, portfolio_id: 19, name: 'My Portfolio', total_value: null, total_return_pct: null },
             ],
+            '/api/portfolio/21/history': {
+                ...fx.history,
+                portfolio_id: 21,
+                reason: null,
+                points: [
+                    { date: '2026-09-01', value: 100_000, net_contributions: 100_000, cumulative_return: 0 },
+                    { date: '2026-09-25', value: 124_518, net_contributions: 100_000, cumulative_return: 0.245 },
+                ],
+            },
+            '/api/portfolio/19/history': fx.history,
         })
         useIdentity.getState().setUser(4)
         renderApp('/portfolios')
@@ -124,6 +135,8 @@ describe('the list of portfolios', () => {
         expect(within(table).getByRole('link', { name: 'Portfolio 19' })).toHaveAttribute('href', '/portfolio/19')
         expect(within(table).getByText('Not valued')).toBeInTheDocument()
         expect(within(table).getAllByText('Opened 1 Sept 2026')).toHaveLength(2)
+        expect(await within(table).findByRole('img', { name: 'Value from £100,000 on 1 Sept 2026 to £124,518 on 25 Sept 2026' })).toBeInTheDocument()
+        expect(await within(table).findByText('Not enough days yet')).toBeInTheDocument()
     })
 
     it('offers a retry when the list does not load', async () => {

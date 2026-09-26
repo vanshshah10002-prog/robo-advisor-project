@@ -1,0 +1,84 @@
+/* The grid scrolls inside its frame if it cannot fit; the page never does. */
+.scroll {
+    overflow-x: auto;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: minmax(7rem, max-content) repeat(var(--n), minmax(2.5rem, 1fr));
+    gap: 2px;
+    min-width: min-content;
+    font-size: var(--fs-xs);
+}
+
+.corner {
+    min-height: 1.5rem;
+}
+
+.colHead {
+    align-self: end;
+    padding-bottom: var(--space-1);
+    text-align: center;
+    color: var(--color-ink-3);
+    letter-spacing: 0.02em;
+}
+
+.rowHead {
+    display: grid;
+    align-content: center;
+    padding-right: var(--space-3);
+    line-height: var(--lh-snug);
+}
+
+.rowName {
+    color: var(--color-ink);
+}
+
+.rowShort {
+    color: var(--color-ink-3);
+}
+
+.cell {
+    display: grid;
+    place-items: center;
+    min-height: 2.25rem;
+    font-family: var(--font-figures);
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--color-ink);
+    border-radius: 1px;
+}
+
+.self {
+    background: var(--color-sunk);
+}
+
+/* Phones: the row names give way to tickers, which head the columns too. */
+@media (max-width: 640px) {
+    .grid {
+        grid-template-columns: max-content repeat(var(--n), minmax(2rem, 1fr));
+        gap: 1px;
+        font-size: 0.6875rem;
+    }
+
+    .rowName {
+        display: none;
+    }
+
+    .rowShort {
+        color: var(--color-ink);
+    }
+
+    /* Too many tickers to sit side by side, so they read upwards, as on a matrix in print. */
+    .colHead {
+        justify-self: center;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        padding-bottom: 0;
+        padding-top: var(--space-1);
+        letter-spacing: 0;
+    }
+
+    .cell {
+        min-height: 2rem;
+    }
+}

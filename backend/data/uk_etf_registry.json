@@ -478,7 +478,7 @@
         "fund_size_gbp_mm": 1200,
         "domicile": "Ireland",
         "ucits": false,
-        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/258440/ishares-physical-silver-etc",
+        "factsheet_url": null,
         "tlh_substitute": "SGLN.L",
         "uk_retail_investable": true,
         "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
@@ -665,7 +665,7 @@
         "fund_size_gbp_mm": 3600,
         "domicile": "Ireland",
         "ucits": true,
-        "factsheet_url": "https://www.ishares.com/uk/individual/en/products/296576/ishares-msci-world-small-cap-ucits-etf",
+        "factsheet_url": null,
         "tlh_substitute": null,
         "verification_note": "Corrected Sep 2026 from knowledge of the LSE listing; confirm against the issuer factsheet."
     },

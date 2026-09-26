@@ -203,16 +203,84 @@ is saved until the investor presses "Open portfolio".
   - Stat values sat at different heights when a label wrapped; `Stat` now aligns its rows through
     a subgrid.
 
-## 7. Known issues carried into later phases
+## 7. Phase 4: the portfolio workspace (done)
+
+An opened portfolio is now a workspace: one line saying which portfolio it is ("Portfolio 20 ·
+risk level 4 · ISA · £250 a month"), five sections, and the section. The valuation loads once in
+the layout and is shared, so moving between sections never waits for it again. Each section
+opens with a sentence built from its own figures, and each has its own route, title and chunk.
+
+| Route | What it shows |
+|---|---|
+| `/portfolio/:id` | Overview: value at the stored closing prices, paid in, gain, "Update prices" (fetches the latest closes and says which), rebalance status with a link to the trades, holdings and drift. |
+| `/portfolio/:id/performance` | The measured record, replayed from the ledger: return since opening (time-weighted), gain, worst fall from a high, and the return expected when opened against what has been realised (only after a year). Value against paid-in and a drawdown chart, for 1 month, 3 months, this year, 1 year or since opening (only the periods the history covers). Returns by period, with a yearly average after a year. Gain or loss by holding: cost, gain, gain on its cost and what it added to the return. Then the simulated record of the same rules at the nearest tested level, labelled as not this portfolio's history. |
+| `/portfolio/:id/universe` | All 13 building blocks, growth then defensive, held or not: the job each does, its limit, target, expected return and yearly swing (calibrated), share of the risk, and the fund held with ISIN, yearly cost, size, domicile and factsheet. It says why a block is not held (no weight at this level, or no fund with enough history) and why a fund other than the first choice is held. "Where the risk comes from" compares each holding's share of the money with its share of the risk (w·Σw / w′Σw from the snapshot), then where the shares are by region, then the correlations between the funds held. |
+| `/portfolio/:id/outlook` | A 2,000-path projection from today's value, using the expected return and swing stored when it opened: years (defaulting to the horizon given in the risk profile, else 10), monthly amount, an optional goal, and today's money or pounds of the day. It gives the middle outcome, paid in by then, the chance of ending below it and of reaching the goal, the fan, how the chance of a loss changes over the years, and how often the backtest's forecasts held (60% within one swing, where a well-judged forecast manages about 68%). |
+| `/portfolio/:id/activity` | Add money (paid in, then invested where the portfolio is furthest below target); check a rebalance and see every trade with its cost and any gain realised, with the ISA or capital gains tax position, before running it; and every transaction, newest first. |
+| `/portfolios` | Each portfolio now has a small trend line of its value since opening. |
+
+- **Charts:**
+  - `Heatmap`: a correlation grid with every figure printed and a table twin. Its image label
+    names the closest and the most independent pair. On phones the tickers head the rows, and
+    the column heads read upwards.
+  - `CompareBars`: two measures per row on one scale, each bar carrying its figure.
+  - `Sparkline`: a labelled trend line for a table cell.
+  - `DataTable` has a `stack` mode. On phones each row becomes a block of labelled values, so
+    the ledger, trades, gains and list never scroll sideways. The table roles are restated
+    because the stacked layout would drop them.
+  - Time axes drop a label that would overlap its neighbour. On a phone, "Jul 2025" had run into
+    "Oct 2025".
+  - `AllocationBar` leaves out the growth/defensive bracket when every item is in one sleeve.
+- **Found in review:**
+  - If the portfolio's details failed to load, the Outlook projected with no monthly amount and
+    said nothing. The workspace now shows the failure with a retry, and the Outlook waits for the
+    details.
+  - The drawdown series was quadratic in the length of the history; it is now a single pass.
+  - A hedge whose share of the risk is below zero draws no bar and is described as lowering the
+    risk.
+- **Shell:** the error boundary now resets when the address changes instead of being keyed by
+  it. Before, moving between sections remounted the whole workspace, which lost the navigation's
+  focus and anything typed in a section. The workspace is keyed by portfolio instead, so nothing
+  typed in one portfolio carries over to another.
+- **Backend:**
+  - **Users are no longer matched by name.** `POST /risk-profile` and `/risk-profile/quick`
+    take the `user_id` this browser was given. With it, they update that user, even after a
+    rename. Without it, or with an unknown id, they start a new one. Two people who both type
+    "Ada" no longer share portfolios.
+  - `/performance` returns each holding's `sleeve`, so `palette.sleeveOf` is gone.
+  - `/monte-carlo` with a `portfolio_id` refuses with 422 when the portfolio has no stored
+    expected return and volatility. Before, it silently used 6% and 12%.
+  - `/asset-classes` names the 13 building blocks as the universe does ("US shares", not "US
+    Equity"), so a holding has one name on every page.
+  - The factsheet links for SGLP.L (Invesco gold, which pointed at an iShares silver page) and
+    ISPY.L (L&G cyber security, which pointed at an iShares small-cap page) are cleared rather than
+    left wrong. A test now checks that every link goes to the fund's own issuer.
+- **Tests:**
+  - Unit and route tests for every section and chart. The route tests stub a 15-month history, a
+    universe held exactly as the recorded construction snapshot holds it, the ledger, a
+    rebalance plan and the projection.
+  - e2e (`e2e/workspace.spec.ts`) walks every section, adds money and runs a rebalance on
+    desktop and on a phone, checking sideways scrolling and console errors. It found the risk
+    bars' figures spilling 24px past a phone's edge.
+  - `tests/test_workspace.py` covers user ids, sleeves and the saved-portfolio projection.
+
+## 8. Known issues carried into later phases
 
 | Issue | Where | Phase |
 |---|---|---|
-| `POST /api/risk-profile` matches users by name, so two people who both type "Ada" share a user and its portfolios | `backend/api/routes/onboarding.py` | 4 (issue an id and keep it in the browser) |
-| The portfolio page is an overview only: no history, construction, universe or projection yet | `routes/portfolio` | 4 |
-| `palette.sleeveOf` mirrors `policy.sleeve_of` because `/performance` holdings carry no sleeve | `lib/palette.ts` | 4 (return `sleeve` from `/performance`) |
-| The holdings specimen scrolls sideways inside its frame on phones | `routes/styleguide` | 4 |
+| Archiving a portfolio is not offered: the backend has no way to hide or close one | `backend/api/routes/portfolio.py` | 5, if wanted (needs a field and a route) |
+| VAPX.L (Asia-Pacific ex Japan) carries an estimated yearly swing of about 26% before calibration (30% after), well above the region's usual 15–20%, so it takes 3.5% of the risk for 1.4% of the money. It may be a price-data problem (it is quoted in dollars) | `backend/data`, the price cache | Investigate |
+| Registry entries marked "Corrected Sep 2026 from knowledge of the LSE listing" should be checked against the issuers' factsheets. Two links were wrong; others may be | `backend/data/uk_etf_registry.json` | Data check |
+| The portfolio list fetches each portfolio's full history to draw its trend line: one request per row. Fine for a handful; with many portfolios, add a short trend to `/portfolios/user/{id}` or load it as rows scroll into view | `routes/portfolio/PortfoliosPage.tsx` | When lists grow |
+| Without a risk profile in this browser, the outlook starts at 10 years rather than the investor's own horizon | `routes/portfolio/outlook` | Acceptable; the box can be changed |
 | Local test data: user "Phase Three", its risk profiles and portfolio 20 were created while checking the journey against the real API | local database | Delete if unwanted |
 | All 19 older local portfolios predate snapshots and the ledger replay, so construction and history are empty for them | local database | Open a new portfolio to see both |
+
+Resolved in Phase 4:
+- matching users by name;
+- `palette.sleeveOf` duplicating `policy.sleeve_of`;
+- the style guide's holdings table scrolling sideways on phones;
+- the portfolio page being an overview only.
 
 Resolved in Phase 3:
 - the builder creating a portfolio on every visit;
@@ -221,17 +289,11 @@ Resolved in Phase 3:
 - the 931 kB bundle;
 - the legacy client and store.
 
-## 8. Remaining phases
+## 9. Remaining phases
 
-- **Phase 4:** the portfolio workspace, built from the Phase 1 primitives and Phase 2 routes:
-  - Performance: `LineChart` over `/history`, with the value and invested series.
-  - Asset universe: `AllocationBar`, `DriftBars` and `/universe`.
-  - Future trajectory: `FanChart` over `/monte-carlo`, in real terms, with the goal.
-  - Track record: `LineChart` over `/strategy/track-record`, strategy against benchmark.
-  - Activity: the transaction ledger.
 - **Phase 5:** polish and QA, then a dark theme that redefines only the semantic tokens.
 
-## 9. Figma
+## 10. Figma
 
 - Figma is connected: the "Vansh" account, Starter plan, with a **View** seat.
 - A View seat on Starter cannot edit design files, and MCP calls are rate-limited. Nothing has
@@ -244,7 +306,7 @@ Resolved in Phase 3:
   3. **Draw the new journey as a FigJam flow** (`figma-generate-diagram`).
   4. **Link the primitives with Code Connect** once they are stable.
 
-## 10. Contract samples
+## 11. Contract samples
 
 `frontend/src/test/contract/*.json` are responses recorded from the running API.
 `src/api/contract.test.ts` parses each one with the schema the app uses, so a backend change
@@ -256,7 +318,7 @@ start the API (`make backend`) and record again:
 | `preview.json` | `POST /api/portfolio/preview` for user 1, risk 9 (capped to 7), £50,000 |
 | `construction.json` | `snapshot_from_result(build_optimised_portfolio(7, 1.0), 7)` wrapped in `ConstructionResponse` (no local portfolio has one yet) |
 | `construction-legacy.json`, `history-legacy.json` | `GET /api/portfolio/19/construction`, `GET /api/portfolio/19/history` |
-| `universe.json` | `GET /api/universe?portfolio_id=19` |
+| `universe.json` | `GET /api/universe?portfolio_id=19`, with SGLP.L's factsheet link cleared by hand after the registry fix |
 | `track-record.json` | `GET /api/strategy/track-record?risk=5` |
 | `monte-carlo.json` | `POST /api/monte-carlo` with £50,000, £250 a month, 15 years, 500 paths, `annual_return` 0.065, `annual_volatility` 0.089, `goal_amount` 150,000 and `real_terms: true`. The contract test checks that paid-in counts each payment at face value. |
 | `portfolios.json`, `risk-profile.json` | `GET /api/portfolios/user/1`, `GET /api/risk-profile/1` |

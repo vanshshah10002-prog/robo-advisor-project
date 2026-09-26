@@ -73,3 +73,77 @@
     color: var(--color-ink-3);
     letter-spacing: 0.02em;
 }
+
+/* Only a stacked table's phone layout needs its values as one box. */
+.stackValue {
+    display: contents;
+}
+
+/* Phones: a stacked table sets each row as a block, its first cell as a
+   heading and every other cell as "label  value", so nothing scrolls sideways. */
+@media (max-width: 640px) {
+    .stack thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .stack tbody tr,
+    .stack tfoot tr {
+        display: grid;
+        gap: 2px;
+        padding: var(--space-3) 0;
+        border-bottom: var(--rule-hairline);
+    }
+
+    .stack tfoot tr {
+        border-top: var(--rule-ink);
+        border-bottom: var(--rule-total);
+    }
+
+    .stack th,
+    .stack td,
+    .stack tfoot th,
+    .stack tfoot td {
+        padding: 0;
+        border: 0;
+    }
+
+    .stack tbody th,
+    .stack tfoot th {
+        padding-bottom: var(--space-1);
+    }
+
+    .stack td {
+        display: flex;
+        justify-content: space-between;
+        gap: var(--space-4);
+        text-align: right;
+    }
+
+    .stack td::before {
+        content: attr(data-label);
+        font-family: var(--font-text);
+        font-size: var(--fs-xs);
+        color: var(--color-ink-3);
+        text-align: left;
+    }
+
+    .stack td[data-label='']::before,
+    .stack td:not([data-label])::before {
+        content: none;
+    }
+
+    .stack .stackValue {
+        display: block;
+        min-width: 0;
+    }
+
+    /* A blank totals cell would otherwise show its label with nothing beside it. */
+    .stack td:empty {
+        display: none;
+    }
+}

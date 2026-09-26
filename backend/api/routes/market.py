@@ -17,6 +17,7 @@ from backend.data.market_data import fetch_prices
 from backend.data.prices import get_latest_gbp_price
 from backend.data.cache import get_or_fetch_prices
 from backend.config import ASSET_CLASSES
+from backend.engine.universe_view import BLOCK_INFO
 
 router = APIRouter()
 
@@ -112,6 +113,9 @@ async def list_asset_classes():
         seen_classes.add(ac)
 
         info = descriptions.get(ac, {"name": ac.replace("_", " ").title(), "description": "", "risk_level": 3})
+        if ac in BLOCK_INFO:
+            # The building blocks carry one plain name everywhere they appear.
+            info = {**info, "name": BLOCK_INFO[ac][0]}
         etfs_in_class = get_etfs_by_asset_class(ac)
         primary = etfs_in_class[0] if etfs_in_class else None
         result.append({

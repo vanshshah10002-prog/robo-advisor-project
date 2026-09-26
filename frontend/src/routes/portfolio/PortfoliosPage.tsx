@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
-import { useUserPortfolios } from '@/api/queries'
+import { useHistory, useUserPortfolios } from '@/api/queries'
 import type { PortfolioSummary } from '@/api/schemas'
-import { DataTable, type Column } from '@/charts'
+import { DataTable, Sparkline, type Column } from '@/charts'
 import { date, money } from '@/lib/format'
 import { level } from '@/lib/risk'
 import { usePageTitle } from '@/lib/usePageTitle'
@@ -29,7 +29,22 @@ const COLUMNS: Column<PortfolioSummary>[] = [
     { key: 'value', label: 'Value', numeric: true, render: (r) => (r.total_value === null ? 'Not valued' : money(r.total_value)) },
     { key: 'paid', label: 'Paid in', numeric: true, render: (r) => money(r.net_contributions) },
     { key: 'return', label: 'Return', numeric: true, render: (r) => (r.total_return_pct === null ? '—' : <Delta value={r.total_return_pct} />) },
+    { key: 'trend', label: 'Since opening', render: (r) => <Trend id={r.portfolio_id} /> },
 ]
+
+/** The daily value since opening, once there are two days to draw. */
+function Trend({ id }: { id: number }) {
+    const history = useHistory(id)
+    const points = history.data?.points ?? []
+    if (points.length < 2) return <span className={styles.rowDetail}>{history.isPending ? '' : 'Not enough days yet'}</span>
+    const [first, last] = [points[0], points[points.length - 1]]
+    return (
+        <Sparkline
+            values={points.map((p) => p.value)}
+            label={`Value from ${money(first.value)} on ${date(first.date)} to ${money(last.value)} on ${date(last.date)}`}
+        />
+    )
+}
 
 /** Every portfolio this browser has opened, newest first, with its value today. */
 export default function PortfoliosPage() {
@@ -67,5 +82,5 @@ function List({ userId, portfolios }: { userId: number | null; portfolios: Retur
             </Notice>
         )
     }
-    return <DataTable caption="Your portfolios" columns={COLUMNS} rows={portfolios.data} rowKey={(r) => r.portfolio_id} />
+    return <DataTable caption="Your portfolios" stack columns={COLUMNS} rows={portfolios.data} rowKey={(r) => r.portfolio_id} />
 }

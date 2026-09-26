@@ -24,6 +24,7 @@ const ISA_OPTIONS = [
  */
 export default function FinancesPage() {
     const navigate = useNavigate()
+    const userId = useIdentity((s) => s.userId)
     const setUser = useIdentity((s) => s.setUser)
     const submit = useSubmitRiskProfile()
     const { draft, problems, errorFor, attempt, sentBack } = useSection('finances')
@@ -35,7 +36,7 @@ export default function FinancesPage() {
             navigate(incomplete.path, { state: { incomplete: true } })
             return
         }
-        const request = buildProfileRequest(draft)
+        const request = buildProfileRequest(draft, userId)
         if (!request) return
         submit.mutate(request, {
             onSuccess: (profile) => {

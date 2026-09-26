@@ -27,24 +27,28 @@ export const CHART_INK = {
     bandOuter: 'rgb(40 78 153 / 0.10)',
 } as const
 
-export type Sleeve = 'growth' | 'defensive'
+/**
+ * Correlation shading, from the sheet at 0 to a 60% accent tint at 1. The
+ * tint stops at 60% so ink text stays above 4.5:1 on every cell.
+ */
+export const HEAT = { low: '#fdfbf7', high: '#7d93bf' } as const
 
-/** Mirrors backend/engine/policy.py `sleeve_of` until the API returns the sleeve itself (Phase 2, B2). */
-const DEFENSIVE_CLASSES: ReadonlySet<string> = new Set([
-    'uk_gilts',
-    'uk_inflation_linked',
-    'global_bonds',
-    'corporate_bonds',
-    'cash_equivalent',
-    'uk_bonds',
-    'high_yield_bonds',
-    'us_treasury',
-    'indian_bonds',
-])
+const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
 
-export function sleeveOf(assetClass: string): Sleeve {
-    return DEFENSIVE_CLASSES.has(assetClass) ? 'defensive' : 'growth'
+/** The shade for a correlation: values at or below zero stay unshaded. */
+export function heatColour(value: number): string {
+    const t = Math.min(1, Math.max(0, value))
+    const [lo, hi] = [channels(HEAT.low), channels(HEAT.high)]
+    return `#${lo
+        .map((c, i) =>
+            Math.round(c + (hi[i] - c) * t)
+                .toString(16)
+                .padStart(2, '0'),
+        )
+        .join('')}`
 }
+
+export type Sleeve = 'growth' | 'defensive'
 
 /**
  * One colour per holding, in the order given (pass them largest first).
@@ -59,9 +63,4 @@ export function sleeveColours(sleeves: readonly Sleeve[]): string[] {
         seen[sleeve] += 1
         return colour
     })
-}
-
-/** As `sleeveColours`, for callers that only know the asset class. */
-export function allocationColours(assetClasses: readonly string[]): string[] {
-    return sleeveColours(assetClasses.map(sleeveOf))
 }

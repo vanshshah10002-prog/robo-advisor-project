@@ -72,3 +72,110 @@
     font-size: var(--fs-sm);
     color: var(--color-ink-3);
 }
+
+/* ── Workspace: which portfolio, its sections, then the section ────────── */
+
+.workspace {
+    display: grid;
+    gap: var(--space-8);
+    padding: var(--space-8) 0 var(--space-4);
+}
+
+.identity {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.sections ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-6);
+    padding: 0;
+    list-style: none;
+    border-bottom: var(--rule-hairline);
+}
+
+.sections a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-ink-2);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.sections a:hover {
+    color: var(--color-ink);
+}
+
+.sections a.current {
+    color: var(--color-ink);
+    border-bottom-color: var(--color-ink);
+}
+
+/* A section inside the workspace: the workspace already set the top margin. */
+.section {
+    display: grid;
+    gap: var(--space-10);
+}
+
+.sectionTitle {
+    padding-bottom: var(--space-2);
+    border-bottom: var(--rule-ink);
+    font-family: var(--font-text);
+    font-size: var(--fs-md);
+    font-weight: var(--weight-semibold);
+}
+
+.subsection {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.note {
+    max-width: var(--measure);
+    font-size: var(--fs-sm);
+    color: var(--color-ink-2);
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* Controls that shape a chart: a row of fields on wide screens, stacked on phones. */
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    align-items: start;
+    gap: var(--space-5) var(--space-6);
+    padding: var(--space-4) 0;
+    border-top: var(--rule-hairline);
+    border-bottom: var(--rule-hairline);
+}
+
+/* Side-by-side actions (add money, rebalance) that stack on narrower screens. */
+.panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    align-items: start;
+    gap: var(--space-10);
+}
+
+.panel {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.panelForm {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-4);
+    max-width: 20rem;
+}

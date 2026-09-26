@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { AllocationBar, DataTable, DriftBars, FanChart, FundCell, LineChart, type Column } from '@/charts'
 import { contrast } from '@/lib/contrast'
 import { money, moneyCompact, percent, signedPercent } from '@/lib/format'
-import { CATEGORICAL, DEFENSIVE_RAMP, GROWTH_RAMP, sleeveOf } from '@/lib/palette'
+import { CATEGORICAL, DEFENSIVE_RAMP, GROWTH_RAMP } from '@/lib/palette'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/ui/Button'
 import { Field, TextInput } from '@/ui/Field'
@@ -94,7 +94,7 @@ function Ramp({ name, colours }: { name: string; colours: readonly string[] }) {
 
 const HOLDING_COLUMNS: Column<SpecimenHolding>[] = [
     { key: 'fund', label: 'Fund', render: (h) => <FundCell name={h.name} ticker={h.ticker} /> },
-    { key: 'sleeve', label: 'Sleeve', render: (h) => sleeveOf(h.assetClass) },
+    { key: 'sleeve', label: 'Sleeve', render: (h) => (h.sleeve === 'growth' ? 'Growth' : 'Defensive') },
     { key: 'value', label: 'Value', numeric: true, render: (h) => money(h.value) },
     { key: 'weight', label: 'Weight', numeric: true, render: (h) => percent(h.weight, 0) },
     { key: 'return', label: 'Return', numeric: true, render: (h) => <Delta value={h.returnPct} /> },
@@ -109,7 +109,7 @@ function StatementTable() {
             </figcaption>
             <DataTable
                 caption="Holdings, illustrative"
-                className={styles.statement}
+                stack
                 columns={HOLDING_COLUMNS}
                 rows={SPECIMEN_HOLDINGS}
                 rowKey={(h) => h.ticker}
@@ -119,14 +119,7 @@ function StatementTable() {
     )
 }
 
-const ALLOCATION = SPECIMEN_HOLDINGS.map((h) => ({
-    key: h.ticker,
-    label: h.label,
-    detail: h.ticker,
-    sleeve: sleeveOf(h.assetClass),
-    weight: h.weight,
-    value: h.value,
-}))
+const ALLOCATION = SPECIMEN_HOLDINGS.map((h) => ({ key: h.ticker, label: h.label, detail: h.ticker, sleeve: h.sleeve, weight: h.weight, value: h.value }))
 
 const DRIFT = SPECIMEN_HOLDINGS.map((h, i) => ({
     key: h.ticker,

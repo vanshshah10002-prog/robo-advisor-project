@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clampLevel, level, levelStops } from './risk'
+import { clampLevel, level, levelStops, nearestTested } from './risk'
 
 describe('level', () => {
     it('shows whole levels without a decimal', () => {
@@ -30,5 +30,17 @@ describe('clampLevel', () => {
     it('starts at the assessed level when nothing was chosen', () => {
         expect(clampLevel(null, 6.3)).toBe(6.3)
         expect(clampLevel(undefined, 5)).toBe(5)
+    })
+})
+
+describe('nearestTested', () => {
+    it.each([
+        [5.5, 6],
+        [5.4, 5],
+        [4, 4],
+        [0.3, 1],
+        [12, 10],
+    ])('%s is compared with level %s', (score, tested) => {
+        expect(nearestTested(score)).toBe(tested)
     })
 })

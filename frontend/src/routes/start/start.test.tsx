@@ -108,6 +108,20 @@ describe('onboarding', () => {
         expect(location()).toBe('/start')
     })
 
+    it('updates the profile of the user this browser already has, rather than starting another', async () => {
+        const user = userEvent.setup()
+        const calls = journeyApi()
+        useIdentity.getState().setUser(4)
+        useOnboardingDraft.setState(fx.completeDraft)
+        renderApp('/start/finances')
+
+        await screen.findByRole('group', { name: /stable is your income/ })
+        await user.click(screen.getByRole('button', { name: 'See my risk level' }))
+        await screen.findByRole('heading', { level: 1, name: /Your risk level is/ })
+        const submitted = calls.find((c) => c.method === 'POST' && c.path === '/api/risk-profile')
+        expect(submitted?.body).toMatchObject({ user_id: 4, name: 'Ada' })
+    })
+
     it('says so and keeps the answers when the risk level cannot be worked out', async () => {
         const user = userEvent.setup()
         stubApi({ '/api/quiz-questions': fx.quiz, 'POST /api/risk-profile': { status: 500, body: { detail: 'Profiler unavailable.' } } })

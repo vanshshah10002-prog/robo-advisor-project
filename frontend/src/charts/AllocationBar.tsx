@@ -28,7 +28,7 @@ const TOOLTIP_TOP = 48
 
 /**
  * A single 100% strip of holdings, with the growth/defensive split bracketed
- * above it and every holding listed below. Hover or arrow keys read a segment.
+ * above it when both are present, and every holding listed below. Hover or arrow keys read a segment.
  */
 export function AllocationBar({ items, title, summary, provenance, notes, pending }: AllocationBarProps) {
     const ordered = useMemo(() => orderAllocation(items), [items])
@@ -55,7 +55,7 @@ export function AllocationBar({ items, title, summary, provenance, notes, pendin
                 />
             }
         >
-            <SleeveBrackets totals={totals} />
+            {SLEEVES.every((s) => totals[s] > 0) && <SleeveBrackets totals={totals} />}
             <AllocationStrip items={ordered} colours={colours} label={allocationLabel(title, totals, ordered.length)} hasValues={hasValues} />
             <HoldingList items={ordered} colours={colours} />
         </ChartFrame>
@@ -144,10 +144,8 @@ function segmentRows(item: AllocationItem, hasValues: boolean): TooltipRow[] {
 }
 
 function allocationLabel(title: string, totals: Record<Sleeve, number>, count: number): string {
-    const split = SLEEVES.filter((s) => totals[s] > 0)
-        .map((s) => `${SLEEVE_NAME[s].toLowerCase()} ${percent(totals[s], 0)}`)
-        .join(', ')
-    return `${title}: ${split}, across ${count} holdings. Use the arrow keys to read each one, or switch to the table.`
+    const split = SLEEVES.every((s) => totals[s] > 0) ? `${SLEEVES.map((s) => `${SLEEVE_NAME[s].toLowerCase()} ${percent(totals[s], 0)}`).join(', ')}, ` : ''
+    return `${title}: ${split}across ${count} holdings. Use the arrow keys to read each one, or switch to the table.`
 }
 
 function allocationColumns(hasValues: boolean): Column<AllocationItem>[] {

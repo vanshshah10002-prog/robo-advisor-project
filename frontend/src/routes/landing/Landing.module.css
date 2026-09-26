@@ -114,12 +114,6 @@
     max-width: 34rem;
 }
 
-.notes {
-    display: grid;
-    gap: var(--space-1);
-    padding-left: var(--space-4);
-}
-
 @keyframes rise {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: none; }

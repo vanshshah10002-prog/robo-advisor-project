@@ -3,6 +3,8 @@
  * zod schema (asserted in api/endpoints.test.tsx), so a schema change that
  * breaks them fails fast.
  */
+import constructionRecord from './contract/construction.json' with { type: 'json' }
+import universeRecord from './contract/universe.json' with { type: 'json' }
 
 export const riskProfile = {
     user_id: 4,
@@ -97,7 +99,7 @@ export const performance = {
     expected_volatility: 0.078,
     sharpe_ratio: 0.31,
     holdings: [
-        { ticker: 'VWRL.L', asset_class: 'global_equity', units: 400, average_cost: 100, current_price: 155.6, current_value: 62_240, unrealised_pnl: 22_240, target_weight: 0.5, current_weight: 0.4998, band: 0.05 },
+        { ticker: 'VWRL.L', asset_class: 'global_equity', sleeve: 'growth' as const, units: 400, average_cost: 100, current_price: 155.6, current_value: 62_240, unrealised_pnl: 22_240, target_weight: 0.5, current_weight: 0.4998, band: 0.05 },
     ],
     drift: { 'VWRL.L': -0.0002 },
     portfolio_drift: 0.0004,
@@ -115,7 +117,7 @@ export const rebalancePlan = {
     reasons: ['growth sleeve outside its band'],
     out_of_band: ['VWRL.L'],
     trades: [
-        { ticker: 'VWRL.L', etf_name: 'Vanguard FTSE All-World', action: 'sell', current_weight: 0.561, target_weight: 0.5, trade_value_gbp: 7_600, quantity: 48.8, price_gbp: 155.6, est_cost_gbp: 7.6, est_realised_gain_gbp: 2_720 },
+        { ticker: 'VWRL.L', etf_name: 'Vanguard FTSE All-World', action: 'sell' as const, current_weight: 0.561, target_weight: 0.5, trade_value_gbp: 7_600, quantity: 48.8, price_gbp: 155.6, est_cost_gbp: 7.6, est_realised_gain_gbp: 2_720 },
     ],
     before_allocations: { 'VWRL.L': 0.561 },
     after_allocations: { 'VWRL.L': 0.5 },
@@ -202,6 +204,18 @@ export { default as trackRecord } from './contract/track-record.json' with { typ
 export { default as history } from './contract/history-legacy.json' with { type: 'json' }
 export { default as monteCarloReal } from './contract/monte-carlo.json' with { type: 'json' }
 
+/**
+ * The recorded universe, held as the recorded construction snapshot holds it,
+ * so blocks, weights, volatilities and correlations all describe one portfolio.
+ */
+export const heldUniverse = {
+    ...universeRecord,
+    blocks: universeRecord.blocks.map((b) => {
+        const held = constructionRecord.snapshot.holdings.find((h) => h.asset_class === b.asset_class)
+        return { ...b, held_ticker: held?.ticker ?? null, held_weight: held?.weight ?? null, target_weight: held?.weight ?? null }
+    }),
+}
+
 const QUESTION_TEXT: Record<number, string> = {
     1: 'If your portfolio dropped 20% in a month, what would you do?',
     2: 'What is your primary investment goal?',
@@ -238,3 +252,4 @@ export const completeDraft = {
     usesIsa: true,
     chosenRiskScore: null,
 }
+

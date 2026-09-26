@@ -4,24 +4,16 @@
  * opened and then followed. The API is stubbed so this runs without the
  * backend and the same way every time.
  */
-import { expect, test, type Page, type Route } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import * as fx from '../src/test/fixtures'
+import { collectErrors, noSidewaysScroll, returningBrowser, routeApi } from './support'
 
 const OPENED_ID = 21
-
-function collectErrors(page: Page): string[] {
-    const errors: string[] = []
-    page.on('pageerror', (e) => errors.push(e.message))
-    page.on('console', (m) => {
-        if (m.type() === 'error') errors.push(m.text())
-    })
-    return errors
-}
 
 /** Routes every API call to a fixture, and records what was sent to open a portfolio. */
 async function stubApi(page: Page) {
     const opened: unknown[] = []
-    const replies: Record<string, (route: Route) => unknown> = {
+    await routeApi(page, {
         'GET /api/quiz-questions': () => fx.quiz,
         'POST /api/risk-profile': () => fx.riskProfile,
         'GET /api/risk-profile/4': () => fx.riskProfile,
@@ -37,22 +29,12 @@ async function stubApi(page: Page) {
         },
         [`GET /api/performance/${OPENED_ID}`]: () => ({ ...fx.performance, portfolio_id: OPENED_ID }),
         [`GET /api/portfolio/${OPENED_ID}`]: () => ({ ...fx.portfolioDetail, portfolio_id: OPENED_ID }),
+        [`GET /api/portfolio/${OPENED_ID}/history`]: () => ({ ...fx.history, portfolio_id: OPENED_ID }),
         'GET /api/portfolios/user/4': () => [{ ...fx.portfolioSummary, portfolio_id: OPENED_ID }],
         'GET /api/asset-classes': () => [fx.assetClass],
         'GET /api/etfs': () => [fx.etf],
-    }
-    // By path, not a glob: in development the app's own modules are served from /src/api/.
-    await page.route((url) => url.pathname.startsWith('/api/'), (route) => {
-        const request = route.request()
-        const reply = replies[`${request.method()} ${new URL(request.url()).pathname}`]
-        return reply ? route.fulfill({ json: reply(route) }) : route.fulfill({ status: 404, json: { detail: 'Not stubbed.' } })
     })
     return opened
-}
-
-async function noSidewaysScroll(page: Page) {
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-    expect(overflow).toBeLessThanOrEqual(0)
 }
 
 /** Answers a numbered question with its number key, as a keyboard user would. */
@@ -136,10 +118,7 @@ test('from the front page to an opened portfolio', async ({ page }) => {
 
 test('the old dashboard address leads to the portfolio last opened', async ({ page }) => {
     await stubApi(page)
-    await page.goto('/')
-    await page.evaluate((id) => {
-        localStorage.setItem('ukra.identity', JSON.stringify({ state: { userId: 4, lastPortfolioId: id }, version: 1 }))
-    }, OPENED_ID)
+    await returningBrowser(page, OPENED_ID)
     await page.goto('/dashboard')
     await expect(page).toHaveURL(`/portfolio/${OPENED_ID}`)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Worth £124,518/)

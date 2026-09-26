@@ -1,0 +1,64 @@
+.rows {
+    display: grid;
+    padding: 0;
+    list-style: none;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--space-4);
+    padding: var(--space-2) 0;
+    border-bottom: var(--rule-hairline);
+}
+
+.name {
+    min-width: 0;
+    font-size: var(--fs-sm);
+    color: var(--color-ink);
+}
+
+.detail {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+.bars {
+    display: grid;
+    gap: 3px;
+}
+
+/* The figure sits just past the end of its bar, so it never sits on colour.
+   Bar widths are shares of the row less the room kept at its end for the
+   figure, so the longest bar and its "100.0%" still fit on a phone. */
+.bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 0.875rem;
+    padding-inline-end: 3.5rem;
+}
+
+.fill {
+    flex: none;
+    height: 0.625rem;
+    min-width: 2px;
+    border-radius: 1px;
+}
+
+.value {
+    flex: none;
+    font-family: var(--font-figures);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--color-ink-2);
+}
+
+@media (max-width: 640px) {
+    .row {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: var(--space-1);
+    }
+}

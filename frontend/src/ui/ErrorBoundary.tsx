@@ -3,6 +3,8 @@ import styles from './ErrorBoundary.module.css'
 
 interface Props {
     children: ReactNode
+    /** A change clears a caught error, so navigating away from a broken page recovers without remounting a healthy one. */
+    resetKey?: unknown
 }
 
 interface State {
@@ -19,6 +21,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
     static getDerivedStateFromError(error: Error): State {
         return { error }
+    }
+
+    componentDidUpdate(previous: Props): void {
+        if (this.state.error && previous.resetKey !== this.props.resetKey) this.setState({ error: null })
     }
 
     componentDidCatch(error: Error, info: ErrorInfo): void {

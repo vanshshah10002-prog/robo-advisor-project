@@ -113,3 +113,41 @@ export function plotBox(width: number, height: number): PlotBox {
         withEnds,
     }
 }
+
+/** Labels within this many pixels of an edge anchor to it rather than overhang. */
+const EDGE = 24
+/** A generous average advance for an 11px axis label character. */
+const LABEL_CHAR_WIDTH = 6.5
+/** The least clear space between two neighbouring labels. */
+const LABEL_SPACE = 8
+
+export type Anchor = 'start' | 'middle' | 'end'
+
+export const anchorOf = (at: number, width: number): Anchor => (at < EDGE ? 'start' : at > width - EDGE ? 'end' : 'middle')
+
+export interface AxisLabel {
+    key: string | number
+    at: number
+    label: string
+}
+
+/**
+ * The labels that fit, left to right: one that would run into the label
+ * before it is dropped. Edge labels are anchored inwards, so the first and
+ * last take more room on one side than a centred one.
+ */
+export function spacedLabels<T extends AxisLabel>(labels: readonly T[], width: number): T[] {
+    const span = (t: T): [number, number] => {
+        const w = t.label.length * LABEL_CHAR_WIDTH
+        const anchor = anchorOf(t.at, width)
+        return anchor === 'start' ? [t.at, t.at + w] : anchor === 'end' ? [t.at - w, t.at] : [t.at - w / 2, t.at + w / 2]
+    }
+    return labels.reduce<{ kept: T[]; right: number }>(
+        (acc, t) => {
+            const [left, right] = span(t)
+            return left >= acc.right + LABEL_SPACE ? { kept: [...acc.kept, t], right } : acc
+        },
+        { kept: [], right: -Infinity },
+    ).kept
+}
+

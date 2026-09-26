@@ -223,10 +223,6 @@
 
 /* ── Statement table and charts ───────────────────────────────────────── */
 
-.statement table {
-    min-width: 36rem;
-}
-
 .charts {
     display: grid;
     gap: var(--space-16);

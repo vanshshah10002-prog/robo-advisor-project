@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+    compareScale,
     cumulativeStarts,
     describeRows,
     driftOf,
     driftScale,
+    extremePairs,
     isOutside,
     orderAllocation,
     sleeveTotals,
@@ -82,5 +84,36 @@ describe('drift', () => {
 describe('describeRows', () => {
     it('reads a title then each label and value', () => {
         expect(describeRows('2030', [{ label: 'Middle', value: '£80,000' }])).toBe('2030. Middle £80,000')
+    })
+})
+
+describe('extremePairs', () => {
+    it('finds the most and least related pairs off the diagonal', () => {
+        const matrix = [
+            [1, 0.78, -0.05],
+            [0.78, 1, 0.1],
+            [-0.05, 0.1, 1],
+        ]
+        expect(extremePairs(matrix)).toEqual({ closest: [0, 1], closestValue: 0.78, apart: [0, 2], apartValue: -0.05 })
+    })
+
+    it('is null with no pair to compare', () => {
+        expect(extremePairs([[1]])).toBeNull()
+        expect(extremePairs([])).toBeNull()
+    })
+})
+
+describe('compareScale', () => {
+    it('is the largest value in either series', () => {
+        const items = [
+            { key: 'a', label: 'A', values: [0.45, 0.71] as const },
+            { key: 'b', label: 'B', values: [0.15, 0.001] as const },
+        ]
+        expect(compareScale(items)).toBe(0.71)
+    })
+
+    it('never falls below its floor, so empty or zero rows draw no full bars', () => {
+        expect(compareScale([])).toBe(0.01)
+        expect(compareScale([{ key: 'a', label: 'A', values: [0, 0] }], 0.05)).toBe(0.05)
     })
 })

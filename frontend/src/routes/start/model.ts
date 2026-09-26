@@ -153,14 +153,19 @@ export function firstIncomplete(draft: OnboardingDraft): Section | null {
     return SECTIONS.find((s) => validateSection(s.key, draft).length > 0) ?? null
 }
 
-/** The request for POST /risk-profile, or null while any section is incomplete. */
-export function buildProfileRequest(draft: OnboardingDraft): RiskProfileRequest | null {
+/**
+ * The request for POST /risk-profile, or null while any section is incomplete.
+ * `userId` is the id this browser was given before, so its profile is updated
+ * rather than a second user started; the backend never matches by name.
+ */
+export function buildProfileRequest(draft: OnboardingDraft, userId: number | null = null): RiskProfileRequest | null {
     if (firstIncomplete(draft)) return null
     const o = draft.objective
     const years = o.time_horizon_years as number
     const answer = (id: number) => (id === HORIZON_QUESTION ? horizonAnswer(years) : draft.answers[String(id)])
     const parsed = riskProfileRequestSchema.safeParse({
         name: draft.name.trim(),
+        ...(userId === null ? {} : { user_id: userId }),
         quiz_answers: Array.from({ length: QUESTION_COUNT }, (_, i) => ({ question_id: i + 1, answer: answer(i + 1) })),
         objective_inputs: {
             monthly_income: o.monthly_income,

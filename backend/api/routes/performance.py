@@ -85,6 +85,7 @@ async def get_performance(portfolio_id: int, db: Session = Depends(get_db)):
             {
                 "ticker": h.ticker,
                 "asset_class": h.asset_class,
+                "sleeve": sleeve_of(h.asset_class),
                 "units": h.quantity,
                 "average_cost": h.average_cost,
                 "current_price": h.current_price,

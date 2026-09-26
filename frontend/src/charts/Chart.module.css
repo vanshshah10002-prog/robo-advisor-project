@@ -254,3 +254,9 @@
     font-variant-numeric: tabular-nums lining-nums;
     color: var(--color-ink);
 }
+
+.sparkline {
+    display: block;
+    color: var(--color-ink-2);
+    overflow: visible;
+}

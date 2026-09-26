@@ -238,15 +238,15 @@ export const useCreatePortfolio = () => {
     })
 }
 
-/** Every mutation below changes holdings, cash or prices, so all views of that portfolio refetch. */
-function usePortfolioMutation<TArgs, TResult>(
-    portfolioId: number,
-    mutationFn: (args: TArgs) => Promise<TResult>,
-) {
+/**
+ * Every mutation below changes holdings, cash or prices, so all views of that
+ * portfolio refetch, and so does any list that shows its value.
+ */
+function usePortfolioMutation<TArgs, TResult>(portfolioId: number, mutationFn: (args: TArgs) => Promise<TResult>) {
     const qc = useQueryClient()
     return useMutation({
         mutationFn,
-        onSuccess: () => qc.invalidateQueries({ queryKey: keys.portfolio(portfolioId) }),
+        onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: keys.portfolio(portfolioId) }), qc.invalidateQueries({ queryKey: ['portfolios'] })]),
     })
 }
 
