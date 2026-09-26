@@ -1,0 +1,75 @@
+.scroll {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+    padding: var(--space-3);
+    text-align: left;
+    vertical-align: baseline;
+    border-bottom: var(--rule-hairline);
+}
+
+.table th:first-child,
+.table td:first-child {
+    padding-left: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+    padding-right: 0;
+}
+
+.table thead th {
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+    border-bottom: var(--rule-ink);
+}
+
+.table tbody th {
+    font-weight: var(--weight-regular);
+}
+
+.table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-sunk) 55%, transparent);
+}
+
+.table tfoot th,
+.table tfoot td {
+    border-top: var(--rule-ink);
+    border-bottom: var(--rule-total);
+    font-weight: var(--weight-semibold);
+}
+
+.num {
+    text-align: right !important;
+    white-space: nowrap;
+}
+
+.table td.num,
+.table tfoot td.num {
+    font-family: var(--font-figures);
+    font-size: var(--fs-md);
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fund {
+    display: block;
+    color: var(--color-ink);
+}
+
+.ticker {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+    letter-spacing: 0.02em;
+}

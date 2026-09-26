@@ -28,7 +28,16 @@ export default defineConfig({
         css: { include: [/styles\/tokens\.css/] },
         coverage: {
             provider: 'v8',
-            include: ['src/api/http.ts', 'src/api/endpoints.ts', 'src/api/queries.ts', 'src/lib/**', 'src/store/session.ts', 'src/ui/**'],
+            include: [
+                'src/api/http.ts',
+                'src/api/endpoints.ts',
+                'src/api/queries.ts',
+                'src/charts/**',
+                'src/lib/**',
+                'src/routes/AppShell.tsx',
+                'src/store/session.ts',
+                'src/ui/**',
+            ],
             exclude: ['**/*.test.{ts,tsx}'],
             thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
         },

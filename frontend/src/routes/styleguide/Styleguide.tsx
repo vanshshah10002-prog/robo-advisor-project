@@ -1,13 +1,22 @@
 import { ArrowRight, CheckCircle, Warning } from '@phosphor-icons/react'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { AllocationBar, DataTable, DriftBars, FanChart, FundCell, LineChart, type Column } from '@/charts'
 import { contrast } from '@/lib/contrast'
-import { money, percent, signedPercent } from '@/lib/format'
-import { CATEGORICAL, DEFENSIVE_RAMP, GROWTH_RAMP, allocationColours, sleeveOf } from '@/lib/palette'
+import { money, moneyCompact, percent, signedPercent } from '@/lib/format'
+import { CATEGORICAL, DEFENSIVE_RAMP, GROWTH_RAMP, sleeveOf } from '@/lib/palette'
 import { Button } from '@/ui/Button'
 import { Field, TextInput } from '@/ui/Field'
 import { Delta, Stat, StatGroup } from '@/ui/Stat'
 import { Provenance, Tag } from '@/ui/Tag'
-import { SPECIMEN_HOLDINGS, SPECIMEN_TOTAL } from './specimen'
+import {
+    SPECIMEN_BAND,
+    SPECIMEN_DRIFT,
+    SPECIMEN_HOLDINGS,
+    SPECIMEN_TOTAL,
+    specimenFan,
+    specimenTrack,
+    type SpecimenHolding,
+} from './specimen'
 import styles from './Styleguide.module.css'
 
 const PAPER = '#f7f4ed'
@@ -65,33 +74,6 @@ function Swatches() {
     )
 }
 
-function AllocationStrip() {
-    const colours = allocationColours(SPECIMEN_HOLDINGS.map((h) => h.assetClass))
-    return (
-        <figure className={styles.figure}>
-            <figcaption className={styles.figcaption}>
-                <span>Allocation, balanced portfolio</span>
-                <span className="label">Illustrative</span>
-            </figcaption>
-            <div className={styles.strip} role="img" aria-label="Growth 50%, defensive 50%. Detailed in the list below.">
-                {SPECIMEN_HOLDINGS.map((h, i) => (
-                    <span key={h.ticker} style={{ flexGrow: h.weight, background: colours[i] }} />
-                ))}
-            </div>
-            <ul className={styles.legend}>
-                {SPECIMEN_HOLDINGS.map((h, i) => (
-                    <li key={h.ticker}>
-                        <span className={styles.key} style={{ background: colours[i] }} aria-hidden="true" />
-                        <span>{h.label}</span>
-                        <span className={styles.legendSleeve}>{sleeveOf(h.assetClass)}</span>
-                        <span>{percent(h.weight, 0)}</span>
-                    </li>
-                ))}
-            </ul>
-        </figure>
-    )
-}
-
 function Ramp({ name, colours }: { name: string; colours: readonly string[] }) {
     return (
         <div className={styles.ramp}>
@@ -109,6 +91,14 @@ function Ramp({ name, colours }: { name: string; colours: readonly string[] }) {
     )
 }
 
+const HOLDING_COLUMNS: Column<SpecimenHolding>[] = [
+    { key: 'fund', label: 'Fund', render: (h) => <FundCell name={h.name} ticker={h.ticker} /> },
+    { key: 'sleeve', label: 'Sleeve', render: (h) => sleeveOf(h.assetClass) },
+    { key: 'value', label: 'Value', numeric: true, render: (h) => money(h.value) },
+    { key: 'weight', label: 'Weight', numeric: true, render: (h) => percent(h.weight, 0) },
+    { key: 'return', label: 'Return', numeric: true, render: (h) => <Delta value={h.returnPct} /> },
+]
+
 function StatementTable() {
     return (
         <figure className={styles.figure}>
@@ -116,47 +106,76 @@ function StatementTable() {
                 <span>Holdings</span>
                 <span className="label">Illustrative figures</span>
             </figcaption>
-            <div className={styles.tableScroll}>
-                <table className={styles.table}>
-                    <thead>
-                        <tr>
-                            <th scope="col">Fund</th>
-                            <th scope="col">Sleeve</th>
-                            <th scope="col" className={styles.numCol}>Value</th>
-                            <th scope="col" className={styles.numCol}>Weight</th>
-                            <th scope="col" className={styles.numCol}>Return</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {SPECIMEN_HOLDINGS.map((h) => (
-                            <tr key={h.ticker}>
-                                <th scope="row">
-                                    <span className={styles.fund}>{h.name}</span>
-                                    <span className={styles.ticker}>{h.ticker}</span>
-                                </th>
-                                <td>{sleeveOf(h.assetClass)}</td>
-                                <td className={styles.numCol}>{money(h.value)}</td>
-                                <td className={styles.numCol}>{percent(h.weight, 0)}</td>
-                                <td className={styles.numCol}>
-                                    <Delta value={h.returnPct} />
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th scope="row">Total</th>
-                            <td />
-                            <td className={styles.numCol}>{money(SPECIMEN_TOTAL)}</td>
-                            <td className={styles.numCol}>{percent(1, 0)}</td>
-                            <td className={styles.numCol}>
-                                <Delta value={0.245} />
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
+            <DataTable
+                caption="Holdings, illustrative"
+                className={styles.statement}
+                columns={HOLDING_COLUMNS}
+                rows={SPECIMEN_HOLDINGS}
+                rowKey={(h) => h.ticker}
+                footer={['Total', '', money(SPECIMEN_TOTAL), percent(1, 0), <Delta key="total" value={0.245} />]}
+            />
         </figure>
+    )
+}
+
+const ALLOCATION = SPECIMEN_HOLDINGS.map((h) => ({
+    key: h.ticker,
+    label: h.label,
+    detail: h.ticker,
+    sleeve: sleeveOf(h.assetClass),
+    weight: h.weight,
+    value: h.value,
+}))
+
+const DRIFT = SPECIMEN_HOLDINGS.map((h, i) => ({
+    key: h.ticker,
+    label: h.label,
+    detail: h.ticker,
+    target: h.weight,
+    current: h.weight + SPECIMEN_DRIFT[i],
+    band: SPECIMEN_BAND,
+}))
+
+function Charts() {
+    const fan = useMemo(() => specimenFan(), [])
+    const track = useMemo(() => specimenTrack(), [])
+    return (
+        <div className={styles.charts}>
+            <AllocationBar
+                title="What the portfolio holds"
+                summary="Seven funds: half in growth, half in defensive holdings."
+                provenance="measured"
+                items={ALLOCATION}
+            />
+            <FanChart
+                title="Your money, fifteen years on"
+                summary="£50,000 now and £250 a month. The bands hold 8 in 10, and half, of all simulated outcomes."
+                data={fan}
+                goal={150_000}
+                startYear={2026}
+                notes="Illustrative: lognormal returns of 5.5% a year with 11% volatility, before fees and inflation."
+            />
+            <LineChart
+                title="£10,000 over five years"
+                summary="The strategy against a two-fund benchmark of the same risk, rebalanced the same way."
+                provenance="measured"
+                dates={track.dates}
+                series={[
+                    { key: 'strategy', label: 'Strategy', colour: CATEGORICAL[0], values: track.strategy },
+                    { key: 'benchmark', label: 'Two-fund benchmark', colour: CATEGORICAL[1], values: track.benchmark },
+                ]}
+                baseline={{ value: 10_000, label: '£10,000 invested' }}
+                format={(v) => money(v)}
+                axisFormat={moneyCompact}
+                notes="Illustrative series from a seeded random walk; the real walk-forward record arrives with the workspace."
+            />
+            <DriftBars
+                title="Distance from target"
+                summary="Each holding against its target weight. One has drifted outside its band, so a rebalance is due."
+                items={DRIFT}
+                notes="Band: 2.5 percentage points either side of target."
+            />
+        </div>
     )
 }
 
@@ -236,7 +255,6 @@ export default function Styleguide() {
             </Section>
 
             <Section id="sg-holdings" title="Holdings colour" intro="Two ordinal ramps, chosen to stay distinct under red–green colour blindness. Segments are always separated and labelled.">
-                <AllocationStrip />
                 <div className={styles.ramps}>
                     <Ramp name="Growth" colours={GROWTH_RAMP} />
                     <Ramp name="Defensive" colours={DEFENSIVE_RAMP} />
@@ -256,6 +274,10 @@ export default function Styleguide() {
                     </p>
                     <p className="label">Label · 12px · uppercase · tracked</p>
                 </div>
+            </Section>
+
+            <Section id="sg-charts" title="Charts" intro="Every chart has a table twin, a legend when it has two series, and a readout that follows the pointer or the arrow keys. Data here is illustrative.">
+                <Charts />
             </Section>
 
             <Section id="sg-figures" title="Figures" intro="Tabular numerals, right-aligned, signed. Totals sit under a double rule, as on paper.">

@@ -86,34 +86,88 @@ Tokens are in `frontend/src/styles/tokens.css`. The chart hexes are mirrored in
   - The History page crashed when opening a saved portfolio, because a partial record was loaded
     as a full result. It also printed "Invalid Date" and could crash on a null expected return.
 
-## 4. Known issues carried into later phases
+## 4. Phase 1: page shell and chart primitives (done)
+
+- **Page shell** (`src/routes/AppShell.tsx`):
+  - A layout route containing the skip link, the masthead (wordmark, Portfolios, Dashboard and
+    one primary action, "Build a portfolio"), `<main id="main">` and the small print.
+  - The current page is marked with `aria-current` and an ink underline, not by colour alone.
+  - On phones the navigation drops to its own row; there is no hamburger menu.
+  - Rebuilt screens mount inside it; `/styleguide` is the first. Legacy screens keep their own
+    chrome through `LegacyLayout` in `App.tsx` until they are rebuilt.
+- **Chart primitives** (`src/charts/`):
+  - Hand-rolled SVG and HTML on `d3-scale` and `d3-shape`. Recharts stays only on legacy pages.
+  - `ChartFrame` provides the title, provenance, summary sentence, a Chart/Table switch, legend
+    and notes. It dims the last render while a refetch is pending and shows an empty state.
+  - `AllocationBar`:
+    - A 100% strip, growth first, with 2 px surface gaps between segments.
+    - Brackets above the strip mark the growth/defensive split; every holding is listed below.
+  - `FanChart`:
+    - Bands for 10–90 and 25–75, the median as the only line, and paid-in as a dashed reference.
+    - An optional goal rule, and labels at the end of the median and outer lines.
+  - `LineChart`:
+    - Values over time, with line, area (drawn to zero) and reference variants.
+    - An optional labelled baseline, end labels, and table rows sampled from long series.
+  - `DriftBars`:
+    - Drift from target on a centred axis, with the rebalancing band shaded.
+    - A holding outside its band says "Outside band" in words, with an icon.
+  - `DataTable` and `FundCell`: the statement-style table behind every Table view.
+- **Interaction and accessibility:**
+  - The crosshair readout lists every series at the cursor, in legend order.
+  - Keyboard control: arrows, Page Up/Down, Home/End and Escape. Focus starts on the latest point.
+  - Keyboard moves are announced through a polite live region. The visual tooltip is
+    `aria-hidden`.
+  - Each plot is a focusable `role="img"` whose name summarises the takeaway.
+- **Typography:** headline figures (`Stat`) are now proportional; tabular figures are kept for
+  columns. Axis labels stay in the grotesk with proportional figures, and end labels use the serif.
+- **Tests:**
+  - Unit tests for scales, the data model, hooks, every chart (table twin, keyboard readout,
+    pointer, empty state) and the shell.
+  - A contract test parses the recorded live API responses (§9).
+  - e2e: the shell, keyboard readout on the fan chart, and the table switch.
+  - Coverage over the new modules: 98.8% of lines and 94% of branches.
+
+## 5. Phase 2: backend for the workspace (done)
+
+| Route | What it returns |
+|---|---|
+| `POST /api/portfolio/preview` | Builds a portfolio without saving it: allocations with sleeves, policy, frontier point, and whether the risk was capped to the stored profile. Builds are cached per risk score for 6 hours, so opening the same proposal reuses it. |
+| `GET /api/portfolio/{id}/construction` | The snapshot stored when the portfolio was opened: each fund's expected return and calibrated volatility, correlations, policy and frontier. `recorded: false` for portfolios opened before snapshots existed. |
+| `GET /api/universe[?portfolio_id]` | The building blocks: each asset class, its role and rule, and its funds. With a portfolio, it also marks what the portfolio holds and targets. |
+| `GET /api/portfolio/{id}/history` | Daily value, amount invested, cash, net contributions and cumulative time-weighted return, replayed from the ledger. It never back-fills prices. |
+| `GET /api/strategy/track-record?risk=1..10` | The walk-forward backtest from `backend/data/track_record.json` (built by `make track-record`), with the two-fund benchmark, calendar years and summary statistics. |
+| `POST /api/monte-carlo` | Now also takes `annual_return` and `annual_volatility` (for previews), `goal_amount` and `real_terms`. It returns paid-in by year, probability of loss by year and overall, and the inflation rate used. |
+| `GET /api/portfolios/user/{id}` | Newest first, each with its current value, net contributions, return and holdings count. Values are null for legacy portfolios. |
+
+At risk levels 1–8 the track record trails its benchmark, mostly because of 2022. The workspace
+must show this as plainly as the years it leads.
+
+## 6. Known issues carried into later phases
 
 | Issue | Where | Phase |
 |---|---|---|
-| The builder creates a new portfolio on every visit (19 duplicates for user 1) | `pages/PortfolioBuilder` `useEffect` | 3 |
+| The builder creates a new portfolio on every visit (19 duplicates for user 1) | `pages/PortfolioBuilder` `useEffect` | 3 (use `usePreview`, create only on confirm) |
 | Onboarding invents a risk profile when the API fails | `pages/Onboarding` | 3 |
 | Onboarding autofocuses its first input, so keyboard users skip past the skip link | `pages/Onboarding` | 3 |
-| The main bundle is 923 kB because legacy routes eagerly import Recharts and framer-motion | `App.tsx` | 3 (route-level splitting) |
+| The main bundle is 931 kB because legacy routes eagerly import Recharts and framer-motion | `App.tsx` | 3 (route-level splitting) |
 | The holdings table needs a stacked layout on phones; the specimen scrolls sideways inside its frame | `routes/styleguide`, future holdings view | 4 |
 | Legacy `api/client.ts` and `store/useAdvisorStore.ts` are still used by the old pages | `src/api`, `src/store` | 3–4 |
-| Asset-class sleeve is mirrored client-side from `policy.sleeve_of` | `lib/palette.ts` | 2 (B2 returns it) |
+| `palette.sleeveOf` still mirrors `policy.sleeve_of`; preview and snapshot now return `sleeve`, so new screens should read it from the API | `lib/palette.ts` | 3–4 (delete once the legacy pages go) |
+| All 19 local portfolios predate snapshots and the ledger replay, so construction and history are empty for them | local database | Open a new portfolio to see both |
 
-## 5. Remaining phases
+## 7. Remaining phases
 
-- **Phase 1 (rest):** a light-theme page shell (masthead, navigation, footer) and the chart
-  primitives: allocation strip, fan chart, and drift bars with table views.
-- **Phase 2 (backend):**
-  - B1 portfolio preview without persisting.
-  - B2 construction snapshot and `/universe`.
-  - B3 `/history` (value series).
-  - B4 `/strategy/track-record` (the walk-forward backtest extended to risk 1–10).
-  - B5 Monte Carlo goal probability, real terms and probability of loss.
-  - B6 portfolio list with values.
-- **Phase 3:** rebuild the journey (onboarding → proposal → confirm) on the typed layer.
-- **Phase 4:** the portfolio workspace: performance, asset universe, future trajectory, activity.
+- **Phase 3:** rebuild the journey (onboarding → proposal → confirm) on the typed layer, inside
+  the shell: a live preview while the risk slider moves, and creation only on confirm.
+- **Phase 4:** the portfolio workspace, built from the Phase 1 primitives and Phase 2 routes:
+  - Performance: `LineChart` over `/history`, with the value and invested series.
+  - Asset universe: `AllocationBar`, `DriftBars` and `/universe`.
+  - Future trajectory: `FanChart` over `/monte-carlo`, in real terms, with the goal.
+  - Track record: `LineChart` over `/strategy/track-record`, strategy against benchmark.
+  - Activity: the transaction ledger.
 - **Phase 5:** polish and QA, then a dark theme that redefines only the semantic tokens.
 
-## 6. Figma
+## 8. Figma
 
 - Figma is connected: the "Vansh" account, Starter plan, with a **View** seat.
 - A View seat on Starter cannot edit design files, and MCP calls are rate-limited. Nothing has
@@ -125,3 +179,20 @@ Tokens are in `frontend/src/styles/tokens.css`. The chart hexes are mirrored in
      (`figma-generate-design`).
   3. **Draw the new journey as a FigJam flow** (`figma-generate-diagram`).
   4. **Link the primitives with Code Connect** once they are stable.
+
+## 9. Contract samples
+
+`frontend/src/test/contract/*.json` are responses recorded from the running API.
+`src/api/contract.test.ts` parses each one with the schema the app uses, so a backend change
+that breaks the client fails in CI rather than in the browser. After changing a response model,
+start the API (`make backend`) and record again:
+
+| File | Request |
+|---|---|
+| `preview.json` | `POST /api/portfolio/preview` for user 1, risk 9 (capped to 7), £50,000 |
+| `construction.json` | `snapshot_from_result(build_optimised_portfolio(7, 1.0), 7)` wrapped in `ConstructionResponse` (no local portfolio has one yet) |
+| `construction-legacy.json`, `history-legacy.json` | `GET /api/portfolio/19/construction`, `GET /api/portfolio/19/history` |
+| `universe.json` | `GET /api/universe?portfolio_id=19` |
+| `track-record.json` | `GET /api/strategy/track-record?risk=5` |
+| `monte-carlo.json` | `POST /api/monte-carlo` over 15 years with `annual_return`, `annual_volatility`, `goal_amount` and `real_terms: true` |
+| `portfolios.json`, `risk-profile.json` | `GET /api/portfolios/user/1`, `GET /api/risk-profile/1` |

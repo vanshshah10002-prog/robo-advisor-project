@@ -35,6 +35,8 @@ afterEach(() => vi.unstubAllGlobals())
 type IdleRow = [string, () => { fetchStatus: string }]
 type MutationRow = [string, () => { mutate: (v: never) => void; isSuccess: boolean }, string, unknown]
 
+const previewRequest = { risk_score: 7, investment_amount: 50_000, monthly_contribution: 250, uses_isa: true }
+
 const mcRequest = { portfolio_id: 19, initial_investment: 100_000, monthly_contribution: 250, years: 15, n_simulations: 1000 }
 
 const queryCases: [string, () => { isSuccess: boolean; isError: boolean; error: unknown }, string, unknown][] = [
@@ -52,6 +54,12 @@ const queryCases: [string, () => { isSuccess: boolean; isError: boolean; error: 
     ['useEtfs', () => q.useEtfs('global_equity'), '/api/etfs', [fx.etf]],
     ['useEtf', () => q.useEtf('VWRL.L'), '/api/etf/VWRL.L', fx.etf],
     ['usePriceHistory', () => q.usePriceHistory('VWRL.L', 5), '/api/prices/VWRL.L', [fx.priceBar]],
+    ['usePreview', () => q.usePreview(previewRequest), '/api/portfolio/preview', fx.preview],
+    ['useConstruction', () => q.useConstruction(19), '/api/portfolio/19/construction', fx.construction],
+    ['useHistory', () => q.useHistory(19), '/api/portfolio/19/history', fx.history],
+    ['useUniverse', () => q.useUniverse(), '/api/universe', fx.universe],
+    ['useUniverse (portfolio)', () => q.useUniverse(19), '/api/universe', fx.universe],
+    ['useTrackRecord', () => q.useTrackRecord(5), '/api/strategy/track-record', fx.trackRecord],
 ]
 
 describe('query hooks', () => {
@@ -95,6 +103,10 @@ describe('query hooks', () => {
         ['useEfficientFrontier', () => q.useEfficientFrontier(['only_one'], 5)],
         ['useEtf', () => q.useEtf(null)],
         ['usePriceHistory', () => q.usePriceHistory(null, 5)],
+        ['usePreview', () => q.usePreview(null)],
+        ['useConstruction', () => q.useConstruction(null)],
+        ['useHistory', () => q.useHistory(null)],
+        ['useTrackRecord', () => q.useTrackRecord(null)],
     ])('%s waits until it has what it needs', (_name, hook) => {
         const calls = stubApi({})
         const { result } = renderHook(hook, { wrapper: wrapper() })

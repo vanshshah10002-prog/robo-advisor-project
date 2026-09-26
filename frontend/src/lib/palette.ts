@@ -1,7 +1,7 @@
 /**
  * Chart colours
  * =============
- * Recharts needs literal colours, so the chart hexes live here and are
+ * SVG marks and legacy Recharts need literal colours, so the chart hexes live here and are
  * mirrored as custom properties in src/styles/tokens.css. palette.test.ts
  * fails if the two drift apart.
  *
@@ -51,13 +51,17 @@ export function sleeveOf(assetClass: string): Sleeve {
  * Within a sleeve, the first holding gets the darkest step. A sleeve with
  * more than five holdings wraps, so equal colours are always five apart.
  */
-export function allocationColours(assetClasses: readonly string[]): string[] {
+export function sleeveColours(sleeves: readonly Sleeve[]): string[] {
     const seen: Record<Sleeve, number> = { growth: 0, defensive: 0 }
-    return assetClasses.map((ac) => {
-        const sleeve = sleeveOf(ac)
+    return sleeves.map((sleeve) => {
         const ramp = sleeve === 'growth' ? GROWTH_RAMP : DEFENSIVE_RAMP
         const colour = ramp[seen[sleeve] % ramp.length]
         seen[sleeve] += 1
         return colour
     })
+}
+
+/** As `sleeveColours`, for callers that only know the asset class. */
+export function allocationColours(assetClasses: readonly string[]): string[] {
+    return sleeveColours(assetClasses.map(sleeveOf))
 }

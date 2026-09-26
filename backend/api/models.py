@@ -430,7 +430,7 @@ class TrackRecordSummary(BaseModel):
     cagr: float
     volatility: float
     max_drawdown: float
-    sharpe: float
+    sharpe: Optional[float] = None     # undefined when returns have no variance
 
 
 class TrackRecordPoint(BaseModel):

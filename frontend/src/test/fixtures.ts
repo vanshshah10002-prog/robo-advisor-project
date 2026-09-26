@@ -61,8 +61,15 @@ export const portfolioSummary = {
     name: null,
     risk_score: 5,
     investment_amount: 100_000,
+    monthly_contribution: 250,
+    uses_isa: true,
     expected_return: null,
     created_at: '2026-09-01T10:00:00',
+    total_value: 124_518,
+    net_contributions: 100_000,
+    total_return_pct: 0.245,
+    last_valued_at: '2026-09-25T16:35:00',
+    holdings_count: 7,
 }
 
 export const refreshResult = {
@@ -152,6 +159,11 @@ export const monteCarlo = {
     probability_of_goal: null,
     expected_final_value: 108_400,
     median_final_value: 108_000,
+    contributions: [100_000, 103_000],
+    loss_probability_by_year: [0, 0.24],
+    probability_of_loss: 0.24,
+    real_terms: false,
+    inflation_rate: 0.025,
 }
 
 export const efficientFrontier = {
@@ -182,3 +194,9 @@ export const assetClass = {
 
 export const priceBar = { date: '2026-09-25', open: 155, high: 156, low: 154.5, close: 155.6, volume: 120_000 }
 export const latestPrice = { ticker: 'VWRL.L', price_gbp: 155.6, price: 155.6, as_of: '2026-09-25' }
+
+export { default as preview } from './contract/preview.json'
+export { default as construction } from './contract/construction.json'
+export { default as universe } from './contract/universe.json'
+export { default as trackRecord } from './contract/track-record.json'
+export { default as history } from './contract/history-legacy.json'

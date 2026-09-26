@@ -28,7 +28,7 @@ test('the style guide shows every section and its fonts load', async ({ page }) 
     await page.goto('/styleguide')
 
     await expect(page.getByRole('heading', { level: 1, name: 'The Statement' })).toBeVisible()
-    for (const name of ['Paper and ink', 'Holdings colour', 'Type', 'Figures', 'Headline figures', 'Controls', 'Status']) {
+    for (const name of ['Paper and ink', 'Holdings colour', 'Charts', 'Type', 'Figures', 'Headline figures', 'Controls', 'Status']) {
         await expect(page.getByRole('heading', { level: 2, name, exact: true })).toBeVisible()
     }
     await page.evaluate(() => document.fonts.ready)
@@ -59,6 +59,29 @@ for (const path of ['/', '/dashboard', '/styleguide']) {
         await expect(page.locator('main')).toHaveCount(1)
     })
 }
+
+test('the shell marks the page and offers the one new action', async ({ page }) => {
+    await page.goto('/styleguide')
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    await expect(nav.getByRole('link')).toHaveText(['Portfolios', 'Dashboard'])
+    await expect(page.getByRole('link', { name: 'Build a portfolio' })).toHaveAttribute('href', '/onboarding')
+    await expect(page.getByRole('contentinfo')).toContainText('not financial')
+})
+
+test('charts read out from the keyboard and switch to a table', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard navigation is a desktop concern')
+    await page.goto('/styleguide')
+    const fan = page.getByRole('figure', { name: 'Your money, fifteen years on' })
+    const plot = fan.getByRole('img')
+    await plot.focus()
+    await expect(fan.locator('[aria-live="polite"]')).toHaveText(/^2041, year 15\. Best 1 in 10 above £/)
+    await page.keyboard.press('Home')
+    await expect(fan.locator('[aria-live="polite"]')).toHaveText(/^2026, now\./)
+
+    await fan.getByRole('button', { name: 'Table' }).click()
+    await expect(fan.getByRole('table')).toBeVisible()
+    await expect(fan.getByRole('row')).toHaveCount(17)
+})
 
 test('the amount field reports an invalid value accessibly', async ({ page }) => {
     await page.goto('/styleguide')

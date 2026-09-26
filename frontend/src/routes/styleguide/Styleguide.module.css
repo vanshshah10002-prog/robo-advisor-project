@@ -1,7 +1,5 @@
 .page {
-    max-width: var(--page-max);
-    margin: 0 auto;
-    padding: var(--space-12) var(--gutter) var(--space-20);
+    padding: var(--space-10) 0 var(--space-8);
 }
 
 /* ── Masthead ──────────────────────────────────────────────────────────── */
@@ -147,7 +145,7 @@
     color: var(--color-ink-3);
 }
 
-/* ── Allocation strip and ramps ────────────────────────────────────────── */
+/* ── Figures and ramps ─────────────────────────────────────────────────── */
 
 .figure {
     margin: 0;
@@ -163,50 +161,6 @@
     margin-bottom: var(--space-4);
     border-bottom: var(--rule-ink);
     font-weight: var(--weight-semibold);
-}
-
-.strip {
-    display: flex;
-    gap: 2px;
-    height: 2.5rem;
-}
-
-.strip span {
-    flex-basis: 0;
-    min-width: 2px;
-}
-
-.strip span:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
-.strip span:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-
-.legend {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
-    gap: var(--space-2) var(--space-8);
-    margin-top: var(--space-4);
-    padding: 0;
-    list-style: none;
-    font-size: var(--fs-sm);
-}
-
-.legend li {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) 0;
-    border-bottom: var(--rule-hairline);
-}
-
-.key {
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 1px;
-}
-
-.legendSleeve {
-    font-size: var(--fs-xs);
-    color: var(--color-ink-3);
 }
 
 .ramps {
@@ -255,7 +209,7 @@
     font-size: var(--fs-5xl);
     line-height: 1;
     letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums lining-nums;
+    font-variant-numeric: proportional-nums lining-nums;
 }
 
 .specimen3xl { font-family: var(--font-display); font-size: var(--fs-3xl); line-height: var(--lh-tight); }
@@ -267,83 +221,15 @@
     color: var(--color-ink-2);
 }
 
-/* ── Statement table ───────────────────────────────────────────────────── */
+/* ── Statement table and charts ───────────────────────────────────────── */
 
-.tableScroll {
-    overflow-x: auto;
-}
-
-.table {
-    width: 100%;
+.statement table {
     min-width: 36rem;
-    border-collapse: collapse;
-    font-size: var(--fs-sm);
 }
 
-.table th,
-.table td {
-    padding: var(--space-3) var(--space-3);
-    text-align: left;
-    vertical-align: baseline;
-    border-bottom: var(--rule-hairline);
-}
-
-.table th:first-child,
-.table td:first-child {
-    padding-left: 0;
-}
-
-.table th:last-child,
-.table td:last-child {
-    padding-right: 0;
-}
-
-.table thead th {
-    font-size: var(--fs-xs);
-    font-weight: var(--weight-semibold);
-    letter-spacing: var(--tracking-label);
-    text-transform: uppercase;
-    color: var(--color-ink-3);
-    border-bottom: var(--rule-ink);
-}
-
-.table tbody th {
-    font-weight: var(--weight-regular);
-}
-
-.table tbody tr:hover {
-    background: color-mix(in srgb, var(--color-sunk) 55%, transparent);
-}
-
-.table tfoot th,
-.table tfoot td {
-    padding-top: var(--space-3);
-    border-top: var(--rule-ink);
-    border-bottom: var(--rule-total);
-    font-weight: var(--weight-semibold);
-}
-
-.numCol {
-    text-align: right !important;
-    white-space: nowrap;
-}
-
-.table td.numCol {
-    font-family: var(--font-figures);
-    font-size: var(--fs-md);
-    font-variant-numeric: tabular-nums lining-nums;
-}
-
-.fund {
-    display: block;
-    color: var(--color-ink);
-}
-
-.ticker {
-    display: block;
-    font-size: var(--fs-xs);
-    color: var(--color-ink-3);
-    letter-spacing: 0.02em;
+.charts {
+    display: grid;
+    gap: var(--space-16);
 }
 
 /* ── Stats, controls, tags ─────────────────────────────────────────────── */

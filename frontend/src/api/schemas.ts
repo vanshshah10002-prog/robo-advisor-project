@@ -138,13 +138,22 @@ export const portfolioDetailSchema = z.object({
     holdings: z.array(storedHoldingSchema),
 })
 
+/** A row of GET /portfolios/user/{id}: newest first, valued at last stored prices. */
 export const portfolioSummarySchema = z.object({
     portfolio_id: z.number().int(),
     name: z.string().nullable(),
     risk_score: z.number(),
     investment_amount: z.number(),
+    monthly_contribution: z.number(),
+    uses_isa: z.boolean(),
     expected_return: z.number().nullable(),
     created_at: isoDate.nullable(),
+    /** Null until the portfolio has been valued on the ledger. */
+    total_value: z.number().nullable(),
+    net_contributions: z.number().nullable(),
+    total_return_pct: z.number().nullable(),
+    last_valued_at: isoDate.nullable(),
+    holdings_count: z.number().int(),
 })
 
 export const refreshResultSchema = z.object({
@@ -257,10 +266,16 @@ export const transactionSchema = z.object({
 export const monteCarloRequestSchema = z.object({
     portfolio_id: z.number().int().optional(),
     weights: weights.optional(),
+    /** Portfolio-level figures, for projecting a preview that is not saved yet. */
+    annual_return: z.number().min(-0.5).max(0.5).optional(),
+    annual_volatility: z.number().positive().max(1).optional(),
     initial_investment: z.number().positive(),
     monthly_contribution: z.number().nonnegative(),
     years: z.number().int().min(1).max(50),
     n_simulations: z.number().int().min(100).max(10_000),
+    /** In today's money. */
+    goal_amount: z.number().positive().optional(),
+    real_terms: z.boolean().optional(),
 })
 
 export const monteCarloSchema = z.object({
@@ -273,6 +288,13 @@ export const monteCarloSchema = z.object({
     probability_of_goal: z.number().nullish(),
     expected_final_value: z.number(),
     median_final_value: z.number(),
+    /** Total paid in by each year end. */
+    contributions: z.array(z.number()),
+    /** Share of simulated paths worth less than was paid in, by year. */
+    loss_probability_by_year: z.array(z.number()),
+    probability_of_loss: z.number().nullable(),
+    real_terms: z.boolean(),
+    inflation_rate: z.number().nullable(),
 })
 
 export const frontierPointSchema = z.object({
@@ -286,6 +308,176 @@ export const efficientFrontierSchema = z.object({
     frontier_points: z.array(frontierPointSchema),
     current_portfolio: frontierPointSchema.nullish(),
     risk_free_rate: z.number(),
+})
+
+// ─── Preview, construction, universe ─────────────────────────────────────────
+
+export const sleeveSchema = z.enum(['growth', 'defensive'])
+
+export const previewRequestSchema = z.object({
+    user_id: z.number().int().optional(),
+    risk_score: z.number().min(1).max(10),
+    investment_amount: z.number().positive(),
+    monthly_contribution: z.number().nonnegative(),
+    uses_isa: z.boolean(),
+})
+
+export const policySummarySchema = z.object({
+    growth_target: z.number(),
+    growth_range: z.array(z.number()),
+    growth_weight: z.number(),
+    defensive_weight: z.number(),
+    cash_weight: z.number(),
+})
+
+export const previewSchema = z.object({
+    requested_risk_score: z.number(),
+    risk_score: z.number(),
+    /** True when the stored risk profile lowered the requested level. */
+    capped: z.boolean(),
+    risk_band: z.string(),
+    allocations: z.array(
+        z.object({
+            asset_class: z.string(),
+            sleeve: sleeveSchema,
+            ticker: z.string(),
+            etf_name: z.string(),
+            weight: z.number(),
+            amount_gbp: z.number(),
+            expense_ratio: z.number(),
+        }),
+    ),
+    expected_annual_return: z.number(),
+    expected_volatility: z.number(),
+    sharpe_ratio: z.number(),
+    total_expense_ratio: z.number(),
+    annual_fund_cost_gbp: z.number(),
+    risk_free_rate: z.number().nullable(),
+    policy: policySummarySchema.nullable(),
+    as_of: isoDate,
+})
+
+export const riskReturnPointSchema = z.object({ expected_return: z.number(), volatility: z.number() })
+
+export const constructionSnapshotSchema = z.object({
+    version: z.number().int(),
+    as_of: isoDate,
+    risk_score: z.number(),
+    risk_free_rate: z.number().nullable(),
+    expected_return: z.number().nullable(),
+    expected_volatility: z.number().nullable(),
+    sharpe_ratio: z.number().nullable(),
+    total_expense_ratio: z.number().nullable(),
+    policy: policySummarySchema.nullable(),
+    holdings: z.array(
+        z.object({
+            ticker: z.string(),
+            asset_class: z.string(),
+            sleeve: sleeveSchema,
+            weight: z.number(),
+            expense_ratio: z.number().nullable(),
+            expected_return: z.number().nullable(),
+            volatility: z.number().nullable(),
+        }),
+    ),
+    correlation: z.object({ tickers: z.array(z.string()), matrix: z.array(z.array(z.number())) }),
+    frontier: z.array(riskReturnPointSchema),
+    etf_fallbacks: z.record(z.string(), z.array(z.string())),
+    crisis_regime: z.boolean(),
+    vol_calibration: z.number(),
+})
+
+export const constructionSchema = z.object({
+    portfolio_id: z.number().int(),
+    /** False for portfolios opened before construction was recorded. */
+    recorded: z.boolean(),
+    snapshot: constructionSnapshotSchema.nullable(),
+})
+
+export const universeFundSchema = z.object({
+    ticker: z.string(),
+    name: z.string(),
+    expense_ratio: z.number(),
+    currency: z.string(),
+    domicile: z.string().nullable(),
+    fund_size_gbp_mm: z.number().nullable(),
+    isin: z.string().nullable(),
+    benchmark: z.string().nullable(),
+    ucits: z.boolean(),
+    factsheet_url: z.string().nullable(),
+    preferred: z.boolean(),
+})
+
+export const universeBlockSchema = z.object({
+    asset_class: z.string(),
+    name: z.string(),
+    description: z.string(),
+    sleeve: sleeveSchema,
+    rule: z.string(),
+    max_weight: z.number().nullable(),
+    equity_share_range: z.array(z.number()).nullable(),
+    candidates: z.array(universeFundSchema),
+    held_ticker: z.string().nullable(),
+    held_weight: z.number().nullable(),
+    target_weight: z.number().nullable(),
+})
+
+export const universeSchema = z.object({
+    portfolio_id: z.number().int().nullable(),
+    blocks: z.array(universeBlockSchema),
+})
+
+// ─── History and track record ────────────────────────────────────────────────
+
+export const historySchema = z.object({
+    portfolio_id: z.number().int(),
+    points: z.array(
+        z.object({
+            date: isoDate,
+            value: z.number(),
+            net_contributions: z.number(),
+            /** Time-weighted, as a fraction: deposits are not counted as growth. */
+            cumulative_return: z.number(),
+        }),
+    ),
+    start_date: isoDate.nullable(),
+    end_date: isoDate.nullable(),
+    time_weighted_return: z.number().nullable(),
+    /** Why `points` is empty, in plain words. */
+    reason: z.string().nullable(),
+    unpriced_tickers: z.array(z.string()),
+})
+
+const trackRecordSummarySchema = z.object({
+    end_value: z.number(),
+    total_return: z.number(),
+    cagr: z.number(),
+    volatility: z.number(),
+    max_drawdown: z.number(),
+    sharpe: z.number().nullable(),
+})
+
+export const trackRecordSchema = z.object({
+    risk: z.number().int(),
+    start: isoDate,
+    end: isoDate,
+    initial: z.number(),
+    benchmark_label: z.string(),
+    strategy: trackRecordSummarySchema,
+    benchmark: trackRecordSummarySchema,
+    costs_gbp: z.number(),
+    rebalances: z.number().int(),
+    turnover_per_year: z.number(),
+    forecast_return: z.number().nullable(),
+    forecast_volatility: z.number().nullable(),
+    within_one_sigma: z.number().nullable(),
+    series: z.array(z.object({ date: isoDate, strategy: z.number(), benchmark: z.number() })),
+    calendar_years: z.array(
+        z.object({ year: z.number().int(), strategy: z.number(), benchmark: z.number(), partial: z.boolean() }),
+    ),
+    notes: z.array(z.string()),
+    generated_at: z.string(),
+    prices_downloaded_at: z.string().nullable(),
 })
 
 // ─── Market data ─────────────────────────────────────────────────────────────
@@ -360,6 +552,18 @@ export type MonteCarloRequest = z.infer<typeof monteCarloRequestSchema>
 export type MonteCarlo = z.infer<typeof monteCarloSchema>
 export type FrontierPoint = z.infer<typeof frontierPointSchema>
 export type EfficientFrontier = z.infer<typeof efficientFrontierSchema>
+export type Sleeve = z.infer<typeof sleeveSchema>
+export type PreviewRequest = z.infer<typeof previewRequestSchema>
+export type PolicySummary = z.infer<typeof policySummarySchema>
+export type Preview = z.infer<typeof previewSchema>
+export type RiskReturnPoint = z.infer<typeof riskReturnPointSchema>
+export type ConstructionSnapshot = z.infer<typeof constructionSnapshotSchema>
+export type Construction = z.infer<typeof constructionSchema>
+export type UniverseFund = z.infer<typeof universeFundSchema>
+export type UniverseBlock = z.infer<typeof universeBlockSchema>
+export type Universe = z.infer<typeof universeSchema>
+export type History = z.infer<typeof historySchema>
+export type TrackRecord = z.infer<typeof trackRecordSchema>
 export type Etf = z.infer<typeof etfSchema>
 export type AssetClass = z.infer<typeof assetClassSchema>
 export type PriceBar = z.infer<typeof priceBarSchema>

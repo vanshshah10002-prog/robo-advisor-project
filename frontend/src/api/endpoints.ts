@@ -7,25 +7,31 @@ import { z } from 'zod'
 import { request } from './http'
 import {
     assetClassSchema,
+    constructionSchema,
     contributionResultSchema,
     createdPortfolioSchema,
     efficientFrontierSchema,
     etfSchema,
+    historySchema,
     latestPriceSchema,
     minimalQuizQuestionSchema,
     monteCarloSchema,
     performanceSchema,
     portfolioDetailSchema,
     portfolioSummarySchema,
+    previewSchema,
     priceBarSchema,
     quizQuestionSchema,
     rebalancePlanSchema,
     refreshResultSchema,
     riskProfileSchema,
+    trackRecordSchema,
     transactionSchema,
+    universeSchema,
     type ContributionRequest,
     type MonteCarloRequest,
     type PortfolioRequest,
+    type PreviewRequest,
     type QuickRiskRequest,
     type RiskProfileRequest,
 } from './schemas'
@@ -60,6 +66,22 @@ export const listUserPortfolios = (userId: number, { signal }: Signal = {}) =>
 
 export const refreshPortfolio = (portfolioId: number) =>
     request(`/portfolio/${portfolioId}/refresh`, refreshResultSchema, { method: 'POST' })
+
+/** Builds without opening: nothing is stored or bought. */
+export const previewPortfolio = (body: PreviewRequest, { signal }: Signal = {}) =>
+    request('/portfolio/preview', previewSchema, { method: 'POST', body, signal })
+
+export const getConstruction = (portfolioId: number, { signal }: Signal = {}) =>
+    request(`/portfolio/${portfolioId}/construction`, constructionSchema, { signal })
+
+export const getHistory = (portfolioId: number, { signal }: Signal = {}) =>
+    request(`/portfolio/${portfolioId}/history`, historySchema, { signal })
+
+export const getUniverse = (portfolioId?: number, { signal }: Signal = {}) =>
+    request('/universe', universeSchema, { query: { portfolio_id: portfolioId }, signal })
+
+export const getTrackRecord = (risk: number, { signal }: Signal = {}) =>
+    request('/strategy/track-record', trackRecordSchema, { query: { risk }, signal })
 
 // Performance, rebalancing, cash flows
 export const getPerformance = (portfolioId: number, { signal }: Signal = {}) =>

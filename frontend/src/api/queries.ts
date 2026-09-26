@@ -18,6 +18,7 @@ import type {
     ContributionRequest,
     MonteCarloRequest,
     PortfolioRequest,
+    PreviewRequest,
     QuickRiskRequest,
     RiskProfileRequest,
 } from './schemas'
@@ -35,6 +36,12 @@ export const keys = {
     performance: (id: number) => ['portfolio', id, 'performance'] as const,
     rebalancePlan: (id: number) => ['portfolio', id, 'rebalance'] as const,
     transactions: (id: number) => ['portfolio', id, 'transactions'] as const,
+    construction: (id: number) => ['portfolio', id, 'construction'] as const,
+    history: (id: number) => ['portfolio', id, 'history'] as const,
+    portfolioUniverse: (id: number) => ['portfolio', id, 'universe'] as const,
+    universe: ['universe'] as const,
+    preview: (req: PreviewRequest) => ['preview', req] as const,
+    trackRecord: (risk: number) => ['track-record', risk] as const,
     monteCarlo: (req: MonteCarloRequest) => ['monte-carlo', req] as const,
     frontier: (assetClasses: readonly string[], riskScore: number) =>
         ['efficient-frontier', [...assetClasses].sort(), riskScore] as const,
@@ -112,6 +119,48 @@ export const useTransactions = (portfolioId: number | null) =>
         queryKey: keys.transactions(portfolioId ?? -1),
         queryFn: ({ signal }) => api.getTransactions(portfolioId as number, { signal }),
         enabled: portfolioId !== null,
+    })
+
+/** Previews change with the risk slider: keep the last one on screen while the next loads. */
+export const usePreview = (req: PreviewRequest | null) =>
+    useQuery({
+        queryKey: req ? keys.preview(req) : ['preview', 'idle'],
+        queryFn: ({ signal }) => api.previewPortfolio(req as PreviewRequest, { signal }),
+        enabled: req !== null,
+        placeholderData: keepPreviousData,
+        staleTime: 10 * MINUTE,
+    })
+
+export const useConstruction = (portfolioId: number | null) =>
+    useQuery({
+        queryKey: keys.construction(portfolioId ?? -1),
+        queryFn: ({ signal }) => api.getConstruction(portfolioId as number, { signal }),
+        enabled: portfolioId !== null,
+        staleTime: Infinity,
+    })
+
+export const useHistory = (portfolioId: number | null) =>
+    useQuery({
+        queryKey: keys.history(portfolioId ?? -1),
+        queryFn: ({ signal }) => api.getHistory(portfolioId as number, { signal }),
+        enabled: portfolioId !== null,
+        staleTime: 30 * MINUTE,
+    })
+
+/** Without a portfolio: the building blocks. With one: also what it holds. */
+export const useUniverse = (portfolioId?: number) =>
+    useQuery({
+        queryKey: portfolioId === undefined ? keys.universe : keys.portfolioUniverse(portfolioId),
+        queryFn: ({ signal }) => api.getUniverse(portfolioId, { signal }),
+        staleTime: 60 * MINUTE,
+    })
+
+export const useTrackRecord = (risk: number | null) =>
+    useQuery({
+        queryKey: keys.trackRecord(risk ?? -1),
+        queryFn: ({ signal }) => api.getTrackRecord(risk as number, { signal }),
+        enabled: risk !== null,
+        staleTime: Infinity,
     })
 
 export const useMonteCarlo = (req: MonteCarloRequest | null) =>
