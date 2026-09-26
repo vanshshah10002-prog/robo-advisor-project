@@ -2,14 +2,18 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { fetchUserPortfolios } from '../../api/client'
+import { getPortfolio } from '../../api/endpoints'
+import type { PortfolioSummary } from '../../api/schemas'
+import { date, money, percent } from '../../lib/format'
 import { useAdvisorStore } from '../../store/useAdvisorStore'
 import './PortfolioHistory.css'
 
 export default function PortfolioHistory() {
     const navigate = useNavigate()
     const store = useAdvisorStore()
-    const [portfolios, setPortfolios] = useState<any[]>([])
+    const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [selectError, setSelectError] = useState<string | null>(null)
 
     useEffect(() => {
         const loadPortfolios = async () => {
@@ -26,11 +30,21 @@ export default function PortfolioHistory() {
         loadPortfolios()
     }, [])
 
-    const handleSelect = (p: any) => {
-        // Mock loading the full portfolio result into the store
-        // In a real app, we'd fetch the full details first
-        store.setPortfolioResult(p) 
-        navigate('/builder')
+    // The summary row lacks allocations and metrics, so loading it as a full
+    // result crashed the builder. Load the stored inputs and let the builder
+    // rebuild from all of them. Replaced by the portfolio workspace in Phase 4.
+    const handleSelect = async (p: PortfolioSummary) => {
+        setSelectError(null)
+        try {
+            const detail = await getPortfolio(p.portfolio_id)
+            store.setAdjustedRiskScore(Math.round(detail.risk_score))
+            store.setInvestmentAmount(detail.investment_amount)
+            store.setMonthlyContribution(detail.monthly_contribution)
+            store.setUsesIsa(detail.uses_isa)
+            navigate('/builder')
+        } catch (e) {
+            setSelectError(e instanceof Error ? e.message : 'Could not open that portfolio.')
+        }
     }
 
     return (
@@ -43,6 +57,10 @@ export default function PortfolioHistory() {
                 <h1 className="page-title">Saved Portfolios</h1>
                 <p className="page-subtitle">Select a previously created strategy to view its performance.</p>
             </div>
+
+            {selectError && (
+                <p className="text-negative" role="alert">{selectError}</p>
+            )}
 
             {isLoading ? (
                 <div className="history__loading">Loading your vault...</div>
@@ -63,17 +81,17 @@ export default function PortfolioHistory() {
                         >
                             <div className="history__card-header">
                                 <span className="history__risk-badge font-mono">Risk {Math.round(p.risk_score)}</span>
-                                <span className="history__date text-muted">{new Date(p.created_at).toLocaleDateString()}</span>
+                                <span className="history__date text-muted">{date(p.created_at)}</span>
                             </div>
                             <h3 className="history__card-name">{p.name || `Portfolio #${p.portfolio_id}`}</h3>
                             <div className="history__card-stats">
                                 <div className="history__stat">
                                     <span className="stat__label">Amount</span>
-                                    <span className="stat__value">£{p.investment_amount.toLocaleString()}</span>
+                                    <span className="stat__value">{money(p.investment_amount)}</span>
                                 </div>
                                 <div className="history__stat">
                                     <span className="stat__label">Exp. Return</span>
-                                    <span className="stat__value text-positive">{(p.expected_return * 100).toFixed(1)}%</span>
+                                    <span className="stat__value text-positive">{percent(p.expected_return)}</span>
                                 </div>
                             </div>
                         </motion.div>

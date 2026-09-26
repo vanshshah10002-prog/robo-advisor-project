@@ -5,6 +5,8 @@
  * Uses fetch with the Vite proxy (/api → localhost:8000).
  */
 
+import type { PortfolioSummary } from './schemas'
+
 const API_BASE = '/api'
 
 async function request<T>(
@@ -99,7 +101,7 @@ export function fetchPortfolio(portfolioId: number) {
     return request(`/portfolio/${portfolioId}`)
 }
 
-export function fetchUserPortfolios(userId: number): Promise<any[]> {
+export function fetchUserPortfolios(userId: number): Promise<PortfolioSummary[]> {
     return request(`/portfolios/user/${userId}`)
 }
 

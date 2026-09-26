@@ -1,0 +1,107 @@
+.button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--control-h);
+    padding: 0 var(--space-5);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-family: var(--font-text);
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-semibold);
+    line-height: 1;
+    letter-spacing: 0.005em;
+    text-decoration: none;
+    white-space: nowrap;
+    user-select: none;
+    transition:
+        background-color var(--dur-fast) var(--ease-standard),
+        border-color var(--dur-fast) var(--ease-standard),
+        color var(--dur-fast) var(--ease-standard);
+}
+
+.button:disabled {
+    opacity: 0.45;
+}
+
+.sm {
+    min-height: var(--control-h-sm);
+    padding: 0 var(--space-3);
+    font-size: var(--fs-xs);
+}
+
+/* Primary: ink on paper. One per view — the next step. */
+.primary {
+    background: var(--color-ink);
+    color: var(--color-ink-inverse);
+}
+
+.primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    color: var(--color-ink-inverse);
+}
+
+.secondary {
+    background: var(--color-sheet);
+    border-color: var(--color-rule-strong);
+    color: var(--color-ink);
+}
+
+.secondary:hover:not(:disabled) {
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+}
+
+/* Quiet: an underlined text action for tertiary choices. */
+.quiet {
+    padding-inline: var(--space-2);
+    background: transparent;
+    color: var(--color-accent);
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.quiet:hover:not(:disabled) {
+    color: var(--color-accent-hover);
+    text-decoration-color: currentColor;
+}
+
+.icon {
+    display: inline-flex;
+    font-size: 1.15em;
+}
+
+.button:hover:not(:disabled) .icon:last-child {
+    transform: translateX(2px);
+    transition: transform var(--dur-fast) var(--ease-out);
+}
+
+/* Loading keeps the button's size; the label is hidden, not removed. */
+.button[data-loading] {
+    cursor: progress;
+}
+
+.button[data-loading] .label,
+.button[data-loading] .icon {
+    visibility: hidden;
+}
+
+.spinner {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

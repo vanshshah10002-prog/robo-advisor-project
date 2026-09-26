@@ -10,11 +10,7 @@
 .landing__bg-grid {
     position: absolute;
     inset: 0;
-    background-image:
-        linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
-    background-size: 60px 60px;
-    mask-image: radial-gradient(ellipse 60% 60% at 50% 50%, black, transparent);
+    display: none;
 }
 
 .landing__content {
@@ -30,18 +26,17 @@
 }
 
 .landing__title {
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
-    font-weight: 800;
-    line-height: 1.05;
-    letter-spacing: -0.04em;
+    font-family: var(--font-display);
+    font-size: clamp(2.75rem, 6vw, 5rem);
+    font-weight: var(--weight-regular);
+    line-height: 1;
+    letter-spacing: -0.025em;
     margin-bottom: var(--space-6);
 }
 
 .landing__title-accent {
-    background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 50%, var(--accent-amber) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-style: italic;
+    color: var(--color-ink);
 }
 
 .landing__subtitle {

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { useAdvisorStore } from '../../store/useAdvisorStore'
+import { useAdvisorStore, type RiskProfile } from '../../store/useAdvisorStore'
 import { fetchQuizQuestions, submitRiskProfile } from '../../api/client'
 import type { QuizQuestion } from '../../api/client'
 import './Onboarding.css'
@@ -81,11 +81,11 @@ export default function Onboarding() {
                 quiz_answers: store.quizAnswers,
                 objective_inputs: objInputs,
                 uses_isa: store.usesIsa,
-            }) as any
+            }) as RiskProfile
 
             store.setRiskProfile(result)
             setStep(RESULT_STEP)
-        } catch (error) {
+        } catch {
             // Fallback: compute locally if backend unavailable
             const avgAnswer = store.quizAnswers.reduce((s, a) => s + a.answer, 0) / 10
             const score = Math.round(1 + (avgAnswer - 1) / 4 * 9)

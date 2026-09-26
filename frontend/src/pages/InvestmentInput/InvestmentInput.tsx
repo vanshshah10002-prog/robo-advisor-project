@@ -9,7 +9,6 @@ export default function InvestmentInput() {
         investmentAmount, setInvestmentAmount,
         monthlyContribution, setMonthlyContribution,
         usesIsa, setUsesIsa,
-        riskProfile,
     } = useAdvisorStore()
 
     const presets = [5000, 10000, 25000, 50000, 100000]

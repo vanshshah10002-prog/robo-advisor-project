@@ -1,0 +1,338 @@
+/* =============================================================================
+   Legacy bridge — TEMPORARY
+   =============================================================================
+   The pre-overhaul pages (src/pages/*) still use the old token names and
+   component classes. This file maps them onto the Statement tokens so those
+   pages render in the new light palette today, without gradients, glows or
+   glass. Delete it once the last legacy page is rebuilt (Phase 3/4).
+   New code must not use anything defined here.
+   ============================================================================= */
+
+:root {
+    --bg-primary: var(--color-paper);
+    --bg-secondary: var(--color-sunk);
+    --bg-card: var(--color-sheet);
+    --bg-card-hover: var(--color-sheet);
+    --bg-elevated: var(--color-sheet);
+    --bg-input: var(--color-sheet);
+    --bg-overlay: var(--color-scrim);
+
+    --border: var(--color-rule);
+    --border-hover: var(--color-rule-strong);
+    --border-active: var(--color-accent);
+    --border-subtle: var(--color-rule);
+
+    --accent: var(--color-accent);
+    --accent-faded: var(--color-accent-wash);
+    --accent-blue: var(--color-accent);
+    --accent-blue-hover: var(--color-accent-hover);
+    --accent-blue-glow: var(--color-accent-wash);
+    --accent-amber: var(--color-warn);
+    --accent-amber-glow: var(--color-warn-wash);
+    --accent-green: var(--color-ok);
+    --accent-green-glow: var(--color-ok-wash);
+    --accent-red: var(--color-loss);
+    --accent-red-glow: var(--color-loss-wash);
+    --accent-purple: var(--color-accent);
+
+    --text-primary: var(--color-ink);
+    --text-secondary: var(--color-ink-2);
+    --text-muted: var(--color-ink-3);
+    --text-accent: var(--color-accent);
+    --text-positive: var(--color-gain);
+    --text-negative: var(--color-loss);
+
+    --font-sans: var(--font-text);
+    --font-mono: var(--font-figures);
+    --font-serif: var(--font-display);
+
+    --text-xs: var(--fs-xs);
+    --text-sm: var(--fs-sm);
+    --text-base: var(--fs-md);
+    --text-md: var(--fs-md);
+    --text-lg: var(--fs-lg);
+    --text-xl: var(--fs-xl);
+    --text-2xl: var(--fs-2xl);
+    --text-3xl: var(--fs-3xl);
+    --text-4xl: var(--fs-4xl);
+    --text-5xl: var(--fs-5xl);
+
+    --radius-xl: var(--radius-lg);
+    --radius-full: var(--radius-pill);
+
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: var(--shadow-pop);
+    --shadow-glow-blue: none;
+    --shadow-glow-amber: none;
+
+    --transition-fast: var(--dur-fast) var(--ease-standard);
+    --transition-base: var(--dur-base) var(--ease-standard);
+    --transition-slow: var(--dur-slow) var(--ease-standard);
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────── */
+
+.text-positive { color: var(--color-gain); }
+.text-negative { color: var(--color-loss); }
+.text-muted { color: var(--color-ink-3); }
+.text-secondary { color: var(--color-ink-2); }
+.text-accent { color: var(--color-accent); }
+.mono, [data-mono], .font-mono { font-family: var(--font-figures); font-variant-numeric: tabular-nums lining-nums; }
+.font-serif { font-family: var(--font-display); }
+
+/* ── Layout ────────────────────────────────────────────────────────────── */
+
+.page-container {
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: var(--space-10) var(--gutter) var(--space-16);
+}
+
+.page-header {
+    margin-bottom: var(--space-8);
+    padding-bottom: var(--space-6);
+    border-bottom: var(--rule-ink);
+}
+
+.page-title {
+    font-family: var(--font-display);
+    font-size: var(--fs-3xl);
+    font-weight: var(--weight-medium);
+    color: var(--color-ink);
+}
+
+.page-subtitle {
+    color: var(--color-ink-2);
+    font-size: var(--fs-lg);
+    margin-top: var(--space-2);
+    max-width: var(--measure);
+}
+
+/* ── Card: a ruled panel on sheet paper, no lift, no glow ──────────────── */
+
+.card {
+    background: var(--color-sheet);
+    border: var(--rule-hairline);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.card--interactive,
+.clickable {
+    cursor: pointer;
+}
+
+.card--interactive:hover,
+.clickable:hover {
+    border-color: var(--color-rule-strong);
+}
+
+.card--selected {
+    border-color: var(--color-accent);
+    background: var(--color-accent-wash);
+    box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.card__title {
+    font-size: var(--fs-lg);
+    font-weight: var(--weight-semibold);
+}
+
+.card__value {
+    font-family: var(--font-display);
+    font-size: var(--fs-3xl);
+    font-weight: var(--weight-medium);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: var(--tracking-tight);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--control-h);
+    padding: 0 var(--space-5);
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-semibold);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn--primary {
+    background: var(--color-ink);
+    color: var(--color-ink-inverse);
+}
+
+.btn--primary:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+}
+
+.btn--secondary {
+    background: var(--color-sheet);
+    color: var(--color-ink);
+    border-color: var(--color-rule-strong);
+}
+
+.btn--secondary:hover:not(:disabled) {
+    border-color: var(--color-ink);
+}
+
+.btn--ghost {
+    background: transparent;
+    color: var(--color-ink-2);
+}
+
+.btn--ghost:hover:not(:disabled) {
+    color: var(--color-ink);
+    background: var(--color-sunk);
+}
+
+.btn--lg {
+    min-height: 3.25rem;
+    padding: 0 var(--space-8);
+    font-size: var(--fs-md);
+}
+
+/* ── Inputs ────────────────────────────────────────────────────────────── */
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.input-label {
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-medium);
+    color: var(--color-ink-2);
+}
+
+.input {
+    min-height: var(--control-h);
+    background: var(--color-sheet);
+    border: 1px solid var(--color-rule-strong);
+    border-radius: var(--radius-md);
+    padding: 0 var(--space-4);
+    font-size: var(--fs-md);
+    color: var(--color-ink);
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.input:hover {
+    border-color: var(--color-ink-2);
+}
+
+.input:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: 0;
+    border-color: var(--color-focus);
+}
+
+.input--mono {
+    font-variant-numeric: lining-nums;
+}
+
+/* ── Badges ────────────────────────────────────────────────────────────── */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0.125rem var(--space-2);
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.02em;
+    border-radius: var(--radius-sm);
+}
+
+.badge--blue { background: var(--color-accent-wash); color: var(--color-accent); }
+.badge--green { background: var(--color-ok-wash); color: var(--color-ok); }
+.badge--red { background: var(--color-loss-wash); color: var(--color-loss); }
+.badge--amber { background: var(--color-warn-wash); color: var(--color-warn); }
+
+/* ── Progress ──────────────────────────────────────────────────────────── */
+
+.progress-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--color-rule);
+    overflow: hidden;
+}
+
+.progress-bar__fill {
+    height: 100%;
+    background: var(--color-ink);
+    transition: width var(--dur-slow) var(--ease-out);
+}
+
+/* ── Stat ──────────────────────────────────────────────────────────────── */
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.stat__label {
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-ink-3);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-label);
+}
+
+.stat__value {
+    font-family: var(--font-display);
+    font-size: var(--fs-2xl);
+    font-weight: var(--weight-medium);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: var(--tracking-tight);
+}
+
+.stat__change {
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-medium);
+}
+
+/* ── Grids ─────────────────────────────────────────────────────────────── */
+
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-4); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
+
+@media (max-width: 768px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+
+.disclaimer-footer {
+    max-width: var(--page-max);
+    margin: var(--space-16) auto 0;
+    padding: var(--space-6) var(--gutter) var(--space-10);
+    border-top: var(--rule-hairline);
+    color: var(--color-ink-3);
+    font-size: var(--fs-xs);
+    line-height: var(--lh-snug);
+}

@@ -78,10 +78,8 @@
 
 .summary-card {
     padding: var(--space-5);
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--color-sheet);
+    border: var(--rule-hairline);
     display: flex;
     flex-direction: column;
 }

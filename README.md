@@ -102,7 +102,18 @@ npm run dev
 ```
 
 - **Backend API**: http://127.0.0.1:8000/docs (Swagger UI)
-- **Frontend**: http://127.0.0.1:5173
+- **Frontend**: http://127.0.0.1:5173 (design system specimen at `/styleguide`)
+
+### 5. Frontend checks
+```bash
+cd frontend
+npm run check      # typecheck + lint + unit tests
+npm run coverage   # unit tests with an 80% coverage gate
+npm run e2e        # Playwright smoke tests in installed Chrome (desktop + mobile)
+npm run build
+```
+
+The UI overhaul, its design system and the phase plan are in [`docs/UI_OVERHAUL.md`](docs/UI_OVERHAUL.md).
 
 ---
 

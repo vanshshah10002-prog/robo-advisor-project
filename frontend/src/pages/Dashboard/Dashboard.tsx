@@ -2,12 +2,9 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { useAdvisorStore } from '../../store/useAdvisorStore'
+import { CATEGORICAL, CHART_INK, allocationColours } from '../../lib/palette'
 import './Dashboard.css'
 
-const CHART_COLORS = [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#14b8a6',
-]
 
 function generateProjectionData(initial: number, monthly: number, annualReturn: number, years: number = 10) {
     const data = []
@@ -28,7 +25,7 @@ function generateProjectionData(initial: number, monthly: number, annualReturn: 
 
 export default function Dashboard() {
     const navigate = useNavigate()
-    const { portfolioResult, investmentAmount, monthlyContribution, riskProfile, userName, resetAll } = useAdvisorStore()
+    const { portfolioResult, investmentAmount, monthlyContribution, userName, resetAll } = useAdvisorStore()
 
     if (!portfolioResult) {
         return (
@@ -56,7 +53,9 @@ export default function Dashboard() {
         10,
     )
 
-    const donutData = portfolioResult.allocations.map(a => ({
+    const allocations = [...portfolioResult.allocations].sort((a, b) => b.weight - a.weight)
+    const sliceColours = allocationColours(allocations.map(a => a.asset_class))
+    const donutData = allocations.map(a => ({
         name: a.asset_class.replace(/_/g, ' '),
         value: Math.round(a.weight * 100 * 10) / 10,
         ticker: a.ticker,
@@ -135,12 +134,12 @@ export default function Dashboard() {
                             <AreaChart data={projectionData}>
                                 <defs>
                                     <linearGradient id="projGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        <stop offset="5%" stopColor={CATEGORICAL[0]} stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor={CATEGORICAL[0]} stopOpacity={0} />
                                     </linearGradient>
                                     <linearGradient id="investGrad" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#475569" stopOpacity={0.2} />
-                                        <stop offset="95%" stopColor="#475569" stopOpacity={0} />
+                                        <stop offset="5%" stopColor={CHART_INK.axis} stopOpacity={0.2} />
+                                        <stop offset="95%" stopColor={CHART_INK.axis} stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
@@ -159,8 +158,8 @@ export default function Dashboard() {
                                     }}
                                     formatter={(value: number) => [`£${value.toLocaleString()}`, '']}
                                 />
-                                <Area type="monotone" dataKey="invested" stroke="#475569" fill="url(#investGrad)" name="Invested" />
-                                <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#projGrad)" strokeWidth={2} name="Projected" />
+                                <Area type="monotone" dataKey="invested" stroke={CHART_INK.axis} fill="url(#investGrad)" name="Invested" />
+                                <Area type="monotone" dataKey="value" stroke={CATEGORICAL[0]} fill="url(#projGrad)" strokeWidth={2} name="Projected" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>
@@ -181,7 +180,7 @@ export default function Dashboard() {
                                     stroke="var(--bg-card)" strokeWidth={2}
                                 >
                                     {donutData.map((_, i) => (
-                                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                        <Cell key={i} fill={sliceColours[i]} />
                                     ))}
                                 </Pie>
                                 <Tooltip
@@ -208,7 +207,7 @@ export default function Dashboard() {
                     <div className="dashboard__legend">
                         {donutData.map((d, i) => (
                             <div key={i} className="dashboard__legend-item">
-                                <span className="dashboard__legend-dot" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                <span className="dashboard__legend-dot" style={{ background: sliceColours[i] }} />
                                 <span className="dashboard__legend-name">{d.name}</span>
                                 <span className="dashboard__legend-val font-mono">{d.value}%</span>
                             </div>

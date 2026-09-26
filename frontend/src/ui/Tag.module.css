@@ -1,0 +1,70 @@
+.tag {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0.1875rem var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.icon {
+    display: inline-flex;
+    font-size: 1.1em;
+}
+
+.neutral {
+    background: var(--color-sunk);
+    color: var(--color-ink-2);
+}
+
+.accent {
+    background: var(--color-accent-wash);
+    color: var(--color-accent);
+}
+
+.ok {
+    background: var(--color-ok-wash);
+    color: var(--color-ok);
+}
+
+.warn {
+    background: var(--color-warn-wash);
+    color: var(--color-warn);
+}
+
+.loss {
+    background: var(--color-loss-wash);
+    color: var(--color-loss);
+}
+
+/* Provenance: a small-caps word with a mark — filled, half, or open —
+   so the three kinds differ in shape, not only in colour. */
+.provenance {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+    cursor: help;
+}
+
+.mark {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+}
+
+.provenance[data-kind='measured'] .mark {
+    background: currentColor;
+}
+
+.provenance[data-kind='simulated'] .mark {
+    background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}

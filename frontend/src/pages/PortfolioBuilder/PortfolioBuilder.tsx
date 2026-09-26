@@ -2,15 +2,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { useAdvisorStore } from '../../store/useAdvisorStore'
+import { useAdvisorStore, type PortfolioResult } from '../../store/useAdvisorStore'
 import { createPortfolio, refreshPortfolio } from '../../api/client'
+import { allocationColours } from '../../lib/palette'
 import './PortfolioBuilder.css'
 
-const CHART_COLORS = [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-    '#06b6d4', '#f97316', '#ec4899', '#84cc16', '#14b8a6',
-    '#a855f7', '#6366f1',
-]
 
 export default function PortfolioBuilder() {
     const navigate = useNavigate()
@@ -36,12 +32,12 @@ export default function PortfolioBuilder() {
                 investment_amount: store.investmentAmount,
                 monthly_contribution: store.monthlyContribution,
                 uses_isa: store.usesIsa,
-            }) as any
+            }) as PortfolioResult
 
             store.setAdjustedRiskScore(localRisk)
             store.setPortfolioResult(result)
-        } catch (e: any) {
-            setError(e.message || 'Optimisation failed.')
+        } catch (e) {
+            setError(e instanceof Error && e.message ? e.message : 'Optimisation failed.')
         } finally {
             setIsOptimising(false)
         }
@@ -68,12 +64,14 @@ export default function PortfolioBuilder() {
     }, [])
 
     const portfolio = store.portfolioResult
-    const donutData = portfolio?.allocations.map(a => ({
+    const allocations = [...(portfolio?.allocations ?? [])].sort((a, b) => b.weight - a.weight)
+    const sliceColours = allocationColours(allocations.map(a => a.asset_class))
+    const donutData = allocations.map(a => ({
         name: a.asset_class.replace(/_/g, ' '),
         value: Math.round(a.weight * 10000) / 100,
         ticker: a.ticker,
         amount: a.amount_gbp,
-    })) || []
+    }))
 
     return (
         <motion.div
@@ -195,7 +193,7 @@ export default function PortfolioBuilder() {
                                         strokeWidth={2}
                                     >
                                         {donutData.map((_, i) => (
-                                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                            <Cell key={i} fill={sliceColours[i]} />
                                         ))}
                                     </Pie>
                                     <Tooltip
@@ -221,7 +219,7 @@ export default function PortfolioBuilder() {
                                 <div key={i} className="builder__legend-item">
                                     <span
                                         className="builder__legend-dot"
-                                        style={{ background: CHART_COLORS[i % CHART_COLORS.length] }}
+                                        style={{ background: sliceColours[i] }}
                                     />
                                     <span className="builder__legend-name">{d.name}</span>
                                     <span className="builder__legend-pct font-mono">{d.value.toFixed(1)}%</span>

@@ -1,0 +1,392 @@
+.page {
+    max-width: var(--page-max);
+    margin: 0 auto;
+    padding: var(--space-12) var(--gutter) var(--space-20);
+}
+
+/* ── Masthead ──────────────────────────────────────────────────────────── */
+
+.masthead {
+    padding-bottom: var(--space-12);
+    border-bottom: var(--rule-total);
+    animation: rise var(--dur-slow) var(--ease-out) both;
+}
+
+.dateline {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-2) 0;
+    border-top: var(--rule-ink);
+    border-bottom: var(--rule-hairline);
+}
+
+.title {
+    margin-top: var(--space-10);
+    font-size: clamp(3.25rem, 1.8rem + 6.5vw, 7.5rem);
+    font-weight: var(--weight-regular);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+}
+
+.title em {
+    font-style: italic;
+    font-weight: var(--weight-regular);
+}
+
+.lead {
+    max-width: 34ch;
+    margin-top: var(--space-6);
+    font-family: var(--font-display);
+    font-size: var(--fs-xl);
+    line-height: var(--lh-snug);
+    color: var(--color-ink-2);
+}
+
+.principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: var(--space-6) var(--space-10);
+    margin-top: var(--space-10);
+    padding: 0;
+    list-style: none;
+    counter-reset: principle;
+}
+
+.principles li {
+    counter-increment: principle;
+    padding-top: var(--space-3);
+    border-top: var(--rule-hairline);
+    font-size: var(--fs-sm);
+    color: var(--color-ink-2);
+}
+
+.principles li::before {
+    content: counter(principle, decimal-leading-zero);
+    display: block;
+    margin-bottom: var(--space-2);
+    font-family: var(--font-display);
+    font-size: var(--fs-2xl);
+    line-height: 1;
+    color: var(--color-ink);
+}
+
+.principles strong {
+    color: var(--color-ink);
+    font-weight: var(--weight-semibold);
+}
+
+/* ── Sections: a left rail with the heading, content to the right ─────── */
+
+.section {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    gap: var(--space-6) var(--space-12);
+    padding: var(--space-12) 0;
+    border-bottom: var(--rule-hairline);
+}
+
+.rail h2 {
+    font-size: var(--fs-2xl);
+}
+
+.rail p {
+    margin-top: var(--space-3);
+    font-size: var(--fs-sm);
+    color: var(--color-ink-2);
+}
+
+.body {
+    display: grid;
+    gap: var(--space-8);
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .section {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Swatches ──────────────────────────────────────────────────────────── */
+
+.swatchGroups {
+    display: grid;
+    gap: var(--space-8);
+}
+
+.swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    padding: 0;
+    list-style: none;
+}
+
+.swatch {
+    display: grid;
+    gap: 0.125rem;
+}
+
+.chip {
+    height: 3.5rem;
+    margin-bottom: var(--space-2);
+    border: 1px solid rgb(31 27 22 / 0.12);
+    border-radius: var(--radius-sm);
+}
+
+.swatchName {
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-semibold);
+}
+
+.swatchMeta {
+    font-family: var(--font-text);
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+/* ── Allocation strip and ramps ────────────────────────────────────────── */
+
+.figure {
+    margin: 0;
+    min-width: 0;
+}
+
+.figcaption {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-4);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-4);
+    border-bottom: var(--rule-ink);
+    font-weight: var(--weight-semibold);
+}
+
+.strip {
+    display: flex;
+    gap: 2px;
+    height: 2.5rem;
+}
+
+.strip span {
+    flex-basis: 0;
+    min-width: 2px;
+}
+
+.strip span:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.strip span:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+
+.legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: var(--space-2) var(--space-8);
+    margin-top: var(--space-4);
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-sm);
+}
+
+.legend li {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) 0;
+    border-bottom: var(--rule-hairline);
+}
+
+.key {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 1px;
+}
+
+.legendSleeve {
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+.ramps {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.ramp {
+    display: grid;
+    grid-template-columns: 12rem 1fr;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.rampSteps {
+    display: flex;
+    gap: 2px;
+    height: 1.75rem;
+}
+
+.rampSteps > span {
+    flex: 1;
+}
+
+@media (max-width: 640px) {
+    .ramp {
+        grid-template-columns: 1fr;
+        gap: var(--space-2);
+    }
+}
+
+/* ── Type specimens ────────────────────────────────────────────────────── */
+
+.typeScale {
+    display: grid;
+    gap: var(--space-5);
+}
+
+.typeScale > * {
+    padding-bottom: var(--space-4);
+    border-bottom: var(--rule-hairline);
+}
+
+.specimenXl {
+    font-family: var(--font-figures);
+    font-size: var(--fs-5xl);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.specimen3xl { font-family: var(--font-display); font-size: var(--fs-3xl); line-height: var(--lh-tight); }
+.specimen2xl { font-family: var(--font-display); font-size: var(--fs-2xl); line-height: var(--lh-tight); }
+.specimenXl2 { font-family: var(--font-display); font-size: var(--fs-xl); line-height: var(--lh-tight); }
+
+.specimenBody {
+    max-width: var(--measure);
+    color: var(--color-ink-2);
+}
+
+/* ── Statement table ───────────────────────────────────────────────────── */
+
+.tableScroll {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    min-width: 36rem;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+}
+
+.table th,
+.table td {
+    padding: var(--space-3) var(--space-3);
+    text-align: left;
+    vertical-align: baseline;
+    border-bottom: var(--rule-hairline);
+}
+
+.table th:first-child,
+.table td:first-child {
+    padding-left: 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+    padding-right: 0;
+}
+
+.table thead th {
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+    border-bottom: var(--rule-ink);
+}
+
+.table tbody th {
+    font-weight: var(--weight-regular);
+}
+
+.table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-sunk) 55%, transparent);
+}
+
+.table tfoot th,
+.table tfoot td {
+    padding-top: var(--space-3);
+    border-top: var(--rule-ink);
+    border-bottom: var(--rule-total);
+    font-weight: var(--weight-semibold);
+}
+
+.numCol {
+    text-align: right !important;
+    white-space: nowrap;
+}
+
+.table td.numCol {
+    font-family: var(--font-figures);
+    font-size: var(--fs-md);
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fund {
+    display: block;
+    color: var(--color-ink);
+}
+
+.ticker {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+    letter-spacing: 0.02em;
+}
+
+/* ── Stats, controls, tags ─────────────────────────────────────────────── */
+
+.stats {
+    grid-template-columns: 1.4fr 1fr 1fr;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+.controls {
+    display: grid;
+    gap: var(--space-6);
+}
+
+.buttonRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+/* Forms are one column: the eye runs straight down, nothing is missed. */
+.fields {
+    display: grid;
+    max-width: 28rem;
+    gap: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: var(--rule-hairline);
+}
+
+.tagRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
