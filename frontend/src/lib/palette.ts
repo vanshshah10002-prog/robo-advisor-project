@@ -1,7 +1,7 @@
 /**
  * Chart colours
  * =============
- * SVG marks and legacy Recharts need literal colours, so the chart hexes live here and are
+ * SVG marks need literal colours, so the chart hexes live here and are
  * mirrored as custom properties in src/styles/tokens.css. palette.test.ts
  * fails if the two drift apart.
  *

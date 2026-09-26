@@ -1,19 +1,47 @@
-import { NavLink, Link, Outlet } from 'react-router-dom'
+import { Suspense, useEffect, useRef, type RefObject } from 'react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { ButtonLink } from '@/ui/Button'
+import { ErrorBoundary } from '@/ui/ErrorBoundary'
 import styles from './AppShell.module.css'
 
 const NAV = [
-    { to: '/history', label: 'Portfolios' },
-    { to: '/dashboard', label: 'Dashboard' },
+    { to: '/', label: 'How it works', end: true },
+    { to: '/portfolios', label: 'Portfolios', end: false },
 ] as const
 
+/** Paths where building is already under way, so the "Build" action would only repeat itself. */
+const BUILDING = /^\/(start|proposal)(\/|$)/
+
 /**
- * The page shell for rebuilt screens: a masthead with the wordmark, the two
- * places you go back to, and the one action that starts something new; then
- * the page; then the small print. Legacy screens keep their own chrome until
- * they are rebuilt (Phase 3–4).
+ * After moving to another page, starts it at the top and puts focus on the
+ * page content, so a keyboard or screen-reader user begins there rather than
+ * on a control that has gone. A page that has already placed focus inside
+ * itself (an error summary, say) keeps it. The first page is left alone, so
+ * Tab still reaches the skip link first.
+ */
+function useFocusOnNavigate(pathname: string, main: RefObject<HTMLElement | null>) {
+    const previous = useRef(pathname)
+    useEffect(() => {
+        if (previous.current === pathname) return
+        previous.current = pathname
+        window.scrollTo(0, 0)
+        const active = document.activeElement
+        if (active && active !== document.body && main.current?.contains(active)) return
+        main.current?.focus({ preventScroll: true })
+    }, [pathname, main])
+}
+
+/**
+ * The page shell: a masthead with the wordmark, the places you go back to,
+ * and the one action that starts something new; then the page; then the
+ * small print. Pages load on demand, inside an error boundary of their own,
+ * so a failing page never takes the masthead with it.
  */
 export default function AppShell() {
+    const { pathname } = useLocation()
+    const main = useRef<HTMLElement>(null)
+    useFocusOnNavigate(pathname, main)
+
     return (
         <div className={styles.shell}>
             <a className="skip-link" href="#main">
@@ -29,21 +57,27 @@ export default function AppShell() {
                         <ul>
                             {NAV.map((item) => (
                                 <li key={item.to}>
-                                    <NavLink to={item.to} className={({ isActive }) => (isActive ? styles.active : undefined)}>
+                                    <NavLink to={item.to} end={item.end} className={({ isActive }) => (isActive ? styles.active : undefined)}>
                                         {item.label}
                                     </NavLink>
                                 </li>
                             ))}
                         </ul>
                     </nav>
-                    <ButtonLink to="/onboarding" size="sm" className={styles.action}>
-                        Build a portfolio
-                    </ButtonLink>
+                    {!BUILDING.test(pathname) && (
+                        <ButtonLink to="/start" size="sm" className={styles.action}>
+                            Build a portfolio
+                        </ButtonLink>
+                    )}
                 </div>
             </header>
 
-            <main id="main" tabIndex={-1} className={styles.main}>
-                <Outlet />
+            <main id="main" ref={main} tabIndex={-1} className={styles.main}>
+                <ErrorBoundary key={pathname}>
+                    <Suspense fallback={<p className={styles.loading} aria-busy="true">Loading…</p>}>
+                        <Outlet />
+                    </Suspense>
+                </ErrorBoundary>
             </main>
 
             <footer className={styles.footer}>
@@ -54,8 +88,8 @@ export default function AppShell() {
                         less than you put in.
                     </p>
                     <p className={styles.small}>
-                        Prices are end-of-day closes in pounds sterling. Past performance, real or simulated, is not a
-                        guide to future returns.
+                        Model portfolios: no real money moves. Prices are end-of-day closes in pounds sterling. Past
+                        performance, real or simulated, is not a guide to future returns.
                     </p>
                 </div>
             </footer>

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { ApiError, buildUrl, readDetail, request } from './http'
+import { ApiError, buildUrl, isNotFound, readDetail, request } from './http'
 
 const schema = z.object({ id: z.number(), name: z.string() })
 
@@ -101,5 +101,14 @@ describe('request', () => {
         expect(error).toMatchObject({ kind: 'contract', message: 'The server sent data in an unexpected format.' })
         expect((error as ApiError).isNotFound).toBe(false)
         expect(console.error).toHaveBeenCalledOnce()
+    })
+})
+
+describe('isNotFound', () => {
+    it('is true only for an API 404', () => {
+        expect(isNotFound(new ApiError('http', 404, 'gone'))).toBe(true)
+        expect(isNotFound(new ApiError('http', 500, 'broken'))).toBe(false)
+        expect(isNotFound(new ApiError('network', 0, 'offline'))).toBe(false)
+        expect(isNotFound(new Error('404'))).toBe(false)
     })
 })

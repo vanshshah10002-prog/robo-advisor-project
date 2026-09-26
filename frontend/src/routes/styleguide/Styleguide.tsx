@@ -4,6 +4,7 @@ import { AllocationBar, DataTable, DriftBars, FanChart, FundCell, LineChart, typ
 import { contrast } from '@/lib/contrast'
 import { money, moneyCompact, percent, signedPercent } from '@/lib/format'
 import { CATEGORICAL, DEFENSIVE_RAMP, GROWTH_RAMP, sleeveOf } from '@/lib/palette'
+import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/ui/Button'
 import { Field, TextInput } from '@/ui/Field'
 import { Delta, Stat, StatGroup } from '@/ui/Stat'
@@ -220,6 +221,7 @@ function Controls() {
 }
 
 export default function Styleguide() {
+    usePageTitle('Style guide')
     return (
         <article className={styles.page}>
             <header className={styles.masthead}>

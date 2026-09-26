@@ -21,7 +21,7 @@ export function orderAllocation(items: readonly AllocationItem[]): AllocationIte
     return [...items].sort((a, b) => rank(a.sleeve) - rank(b.sleeve) || b.weight - a.weight)
 }
 
-export function sleeveTotals(items: readonly AllocationItem[]): Record<Sleeve, number> {
+export function sleeveTotals(items: readonly { sleeve: Sleeve; weight: number }[]): Record<Sleeve, number> {
     return items.reduce(
         (acc, i) => ({ ...acc, [i.sleeve]: acc[i.sleeve] + i.weight }),
         { growth: 0, defensive: 0 } as Record<Sleeve, number>,

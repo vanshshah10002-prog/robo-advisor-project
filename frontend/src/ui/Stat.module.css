@@ -4,10 +4,14 @@
     gap: var(--space-6) var(--space-8);
 }
 
+/* Each figure spans three rows of the group (label, value, detail) through a
+   subgrid, so values line up across a row even when one label wraps. */
 .stat {
     display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
     align-content: start;
-    gap: var(--space-1);
+    row-gap: var(--space-1);
     padding-top: var(--space-3);
     border-top: var(--rule-ink);
 }

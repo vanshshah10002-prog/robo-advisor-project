@@ -195,8 +195,46 @@ export const assetClass = {
 export const priceBar = { date: '2026-09-25', open: 155, high: 156, low: 154.5, close: 155.6, volume: 120_000 }
 export const latestPrice = { ticker: 'VWRL.L', price_gbp: 155.6, price: 155.6, as_of: '2026-09-25' }
 
-export { default as preview } from './contract/preview.json'
-export { default as construction } from './contract/construction.json'
-export { default as universe } from './contract/universe.json'
-export { default as trackRecord } from './contract/track-record.json'
-export { default as history } from './contract/history-legacy.json'
+export { default as preview } from './contract/preview.json' with { type: 'json' }
+export { default as construction } from './contract/construction.json' with { type: 'json' }
+export { default as universe } from './contract/universe.json' with { type: 'json' }
+export { default as trackRecord } from './contract/track-record.json' with { type: 'json' }
+export { default as history } from './contract/history-legacy.json' with { type: 'json' }
+export { default as monteCarloReal } from './contract/monte-carlo.json' with { type: 'json' }
+
+const QUESTION_TEXT: Record<number, string> = {
+    1: 'If your portfolio dropped 20% in a month, what would you do?',
+    2: 'What is your primary investment goal?',
+    3: 'How long is your investment horizon?',
+    4: 'What percentage of your net worth is this investment?',
+    5: 'How would you describe your investment knowledge?',
+    6: 'Do you have 6+ months of emergency savings outside this investment?',
+    7: 'How stable is your income?',
+    8: 'Have you invested in equities before?',
+    9: 'What annual return do you expect?',
+    10: 'How do you feel about short-term volatility for long-term gains?',
+}
+
+/** The ten-question quiz, with five options each: "Q2 option 1" … "Q2 option 5". */
+export const quiz = Object.entries(QUESTION_TEXT).map(([id, text]) => ({
+    id: Number(id),
+    text,
+    options: [1, 2, 3, 4, 5].map((n) => `Q${id} option ${n}`),
+}))
+
+/** An onboarding draft with every step answered. */
+export const completeDraft = {
+    name: 'Ada',
+    answers: { 1: 3, 2: 4, 4: 2, 5: 3, 6: 4, 7: 4, 8: 3, 9: 3, 10: 4 } as Record<string, number>,
+    objective: {
+        time_horizon_years: 15,
+        monthly_income: 3_200,
+        monthly_expenses: 2_100,
+        total_investable_assets: 80_000,
+        employment_type: 'employed' as const,
+    },
+    investmentAmount: 50_000,
+    monthlyContribution: 250,
+    usesIsa: true,
+    chosenRiskScore: null,
+}

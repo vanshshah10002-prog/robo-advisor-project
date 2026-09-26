@@ -123,7 +123,7 @@ Tokens are in `frontend/src/styles/tokens.css`. The chart hexes are mirrored in
 - **Tests:**
   - Unit tests for scales, the data model, hooks, every chart (table twin, keyboard readout,
     pointer, empty state) and the shell.
-  - A contract test parses the recorded live API responses (§9).
+  - A contract test parses the recorded live API responses (§10).
   - e2e: the shell, keyboard readout on the fan chart, and the table switch.
   - Coverage over the new modules: 98.8% of lines and 94% of branches.
 
@@ -142,23 +142,87 @@ Tokens are in `frontend/src/styles/tokens.css`. The chart hexes are mirrored in
 At risk levels 1–8 the track record trails its benchmark, mostly because of 2022. The workspace
 must show this as plainly as the years it leads.
 
-## 6. Known issues carried into later phases
+## 6. Phase 3: from the front page to an opened portfolio (done)
+
+Every legacy screen is gone. The journey runs inside the shell, on the typed client, and nothing
+is saved until the investor presses "Open portfolio".
+
+| Route | What it does |
+|---|---|
+| `/` | "A portfolio you can read": how it works in three steps, then the walk-forward track record told as a sentence built from its figures, whichever way they fall ("A simple two-fund portfolio … did better"), with a level switch (3, 5, 7, 9) and the week-by-week chart. A returning investor gets "Go to your portfolio". |
+| `/start`, `/start/losses`, `/start/finances` | Three short steps: your goal, ups and downs, your finances. Every question is asked once: the horizon question is answered from the years typed, and the emergency-fund check from the savings question. Numbered answers take the keys 1–5. A blank Continue lists every problem at the top, takes focus there, and links to each field. A step left incomplete sends you back to it before anything is sent. The draft lives in `sessionStorage` and is validated with zod on load. |
+| `/start/result` | The level, and the willingness and capacity scores behind it, with the rule that joins them. The growth/defensive split comes from a real preview. "How far level N has fallen before" uses the nearest tested level and says so when yours lies between two (the backtest covers whole levels only). If the questions or the profile fail to load, the page says so and offers a retry; it never invents a result. |
+| `/proposal` | An unsaved preview: amount, monthly amount, ISA or general account, and a risk slider that stops at the assessed level ("You can take less risk than that, not more"). It opens with one sentence ("£50,000 now and £250 a month, at risk level 4: 40% in growth…, 9 funds costing about £52 a year"), then expected return, yearly swing, fund costs in pounds, the chance of ending below what was paid in, the holdings, the funds and a real-terms projection. Changes settle for 450 ms before a rebuild; the last proposal stays on screen, dimmed, with a polite status line. "Open portfolio" is enabled only when the proposal on screen is exactly what the inputs ask for, and it opens that request. |
+| `/portfolio/:id` | A minimal, honest overview until Phase 4: a sentence ("Worth £49,950 on 26 Sept 2026: £50 less than the £50,000 paid in. Every holding is within its band."), value, paid in, gain, rebalance status, unpriced funds, holdings and drift. Portfolios opened before purchases were recorded say so instead of showing a £0 value as a loss. |
+| `/portfolios` | Every portfolio opened in this browser, with value, paid in and return, and "Not valued" where there is no value. |
+| Old addresses | `/onboarding` goes to `/start`; `/assets`, `/invest`, `/builder` and `/review` go to `/proposal`; `/history` goes to `/portfolios`; `/dashboard` goes to the last portfolio opened, or the list. Anything else shows "There is nothing at this address". |
+
+- **Shell:**
+  - The navigation is now "How it works" and "Portfolios". "Build a portfolio" leads to `/start`
+    and is hidden during the journey.
+  - Each page is lazy-loaded behind a keyed error boundary, so a failing page keeps the masthead
+    and there is still only one `<main>`.
+  - Moving to another page starts it at the top, with focus on `<main>`. A page that has already
+    placed focus inside itself, such as an error summary, keeps it. The first page is left alone,
+    so Tab still reaches the skip link.
+  - Every page sets the document title ("Your goal · UK Robo Advisor").
+- **New controls** (`src/ui/`):
+  - `ChoiceGroup`: real radios, a fieldset legend, and number keys.
+  - `Slider`: a native range over fixed stops, with `aria-valuetext`.
+  - `Notice` and `ErrorSummary`: only errors are alerts; the summary takes focus.
+  - `MoneyField`: keeps what was typed and reports the parsed figure.
+- **Removed:**
+  - `src/pages/*`, `api/client.ts`, `store/useAdvisorStore.ts` and `styles/legacy.css`;
+  - Recharts, framer-motion, react-hook-form, `@hookform/resolvers` and date-fns.
+  - The entry chunk is now 355 kB (108 kB gzipped), and each page is its own chunk.
+- **Backend:**
+  - **Real-terms Monte Carlo:** contributions rise with inflation, so in today's money each
+    payment counts at face value. `summarise_paths` used to deflate paid-in along with the values,
+    which made the dashed paid-in line fall. The loss probability now compares the two on that
+    same basis. For the recorded sample (£50,000 and £250 a month for 15 years), the chance of
+    ending below paid-in is 6.2%, where the old basis said 0.6%.
+  - `/api/asset-classes` names `europe_ex_uk_equity` ("Europe ex-UK Equity"). It had fallen back
+    to a title-cased id, "Europe Ex Uk Equity". `europe_equity`, which includes the UK, was
+    mislabelled "ex-UK" and is now "Europe Equity".
+- **Tests:**
+  - 375 unit and route tests. Route tests render the whole app against a stubbed `fetch`
+    (`src/test/app.tsx`).
+  - Coverage over `src/routes/**`, `src/ui/**`, `src/lib/**`, `src/charts/**` and the API layer
+    is 99.6% of lines and 96.0% of branches.
+  - e2e (`e2e/journey.spec.ts`) walks from the front page to an opened portfolio on desktop and
+    on a phone, against a stubbed API. It checks the requests sent, sideways scrolling and console
+    errors.
+  - 154 backend tests.
+- **Found while testing and in review:**
+  - Clearing the amount on the proposal left "Open portfolio" enabled for 450 ms, which would
+    have opened the previous amount.
+  - While an amount is invalid, the proposal now keeps its last valid figures, dimmed, and says
+    so. Before, it showed them with no warning and then changed the heading to "Building your
+    portfolio". Arriving with no amount (the draft lives only for the browser session) asks for
+    one.
+  - Stat values sat at different heights when a label wrapped; `Stat` now aligns its rows through
+    a subgrid.
+
+## 7. Known issues carried into later phases
 
 | Issue | Where | Phase |
 |---|---|---|
-| The builder creates a new portfolio on every visit (19 duplicates for user 1) | `pages/PortfolioBuilder` `useEffect` | 3 (use `usePreview`, create only on confirm) |
-| Onboarding invents a risk profile when the API fails | `pages/Onboarding` | 3 |
-| Onboarding autofocuses its first input, so keyboard users skip past the skip link | `pages/Onboarding` | 3 |
-| The main bundle is 931 kB because legacy routes eagerly import Recharts and framer-motion | `App.tsx` | 3 (route-level splitting) |
-| The holdings table needs a stacked layout on phones; the specimen scrolls sideways inside its frame | `routes/styleguide`, future holdings view | 4 |
-| Legacy `api/client.ts` and `store/useAdvisorStore.ts` are still used by the old pages | `src/api`, `src/store` | 3–4 |
-| `palette.sleeveOf` still mirrors `policy.sleeve_of`; preview and snapshot now return `sleeve`, so new screens should read it from the API | `lib/palette.ts` | 3–4 (delete once the legacy pages go) |
-| All 19 local portfolios predate snapshots and the ledger replay, so construction and history are empty for them | local database | Open a new portfolio to see both |
+| `POST /api/risk-profile` matches users by name, so two people who both type "Ada" share a user and its portfolios | `backend/api/routes/onboarding.py` | 4 (issue an id and keep it in the browser) |
+| The portfolio page is an overview only: no history, construction, universe or projection yet | `routes/portfolio` | 4 |
+| `palette.sleeveOf` mirrors `policy.sleeve_of` because `/performance` holdings carry no sleeve | `lib/palette.ts` | 4 (return `sleeve` from `/performance`) |
+| The holdings specimen scrolls sideways inside its frame on phones | `routes/styleguide` | 4 |
+| Local test data: user "Phase Three", its risk profiles and portfolio 20 were created while checking the journey against the real API | local database | Delete if unwanted |
+| All 19 older local portfolios predate snapshots and the ledger replay, so construction and history are empty for them | local database | Open a new portfolio to see both |
 
-## 7. Remaining phases
+Resolved in Phase 3:
+- the builder creating a portfolio on every visit;
+- onboarding inventing a profile when the API failed;
+- the autofocus that skipped the skip link;
+- the 931 kB bundle;
+- the legacy client and store.
 
-- **Phase 3:** rebuild the journey (onboarding → proposal → confirm) on the typed layer, inside
-  the shell: a live preview while the risk slider moves, and creation only on confirm.
+## 8. Remaining phases
+
 - **Phase 4:** the portfolio workspace, built from the Phase 1 primitives and Phase 2 routes:
   - Performance: `LineChart` over `/history`, with the value and invested series.
   - Asset universe: `AllocationBar`, `DriftBars` and `/universe`.
@@ -167,7 +231,7 @@ must show this as plainly as the years it leads.
   - Activity: the transaction ledger.
 - **Phase 5:** polish and QA, then a dark theme that redefines only the semantic tokens.
 
-## 8. Figma
+## 9. Figma
 
 - Figma is connected: the "Vansh" account, Starter plan, with a **View** seat.
 - A View seat on Starter cannot edit design files, and MCP calls are rate-limited. Nothing has
@@ -180,7 +244,7 @@ must show this as plainly as the years it leads.
   3. **Draw the new journey as a FigJam flow** (`figma-generate-diagram`).
   4. **Link the primitives with Code Connect** once they are stable.
 
-## 9. Contract samples
+## 10. Contract samples
 
 `frontend/src/test/contract/*.json` are responses recorded from the running API.
 `src/api/contract.test.ts` parses each one with the schema the app uses, so a backend change
@@ -194,5 +258,5 @@ start the API (`make backend`) and record again:
 | `construction-legacy.json`, `history-legacy.json` | `GET /api/portfolio/19/construction`, `GET /api/portfolio/19/history` |
 | `universe.json` | `GET /api/universe?portfolio_id=19` |
 | `track-record.json` | `GET /api/strategy/track-record?risk=5` |
-| `monte-carlo.json` | `POST /api/monte-carlo` over 15 years with `annual_return`, `annual_volatility`, `goal_amount` and `real_terms: true` |
+| `monte-carlo.json` | `POST /api/monte-carlo` with £50,000, £250 a month, 15 years, 500 paths, `annual_return` 0.065, `annual_volatility` 0.089, `goal_amount` 150,000 and `real_terms: true`. The contract test checks that paid-in counts each payment at face value. |
 | `portfolios.json`, `risk-profile.json` | `GET /api/portfolios/user/1`, `GET /api/risk-profile/1` |

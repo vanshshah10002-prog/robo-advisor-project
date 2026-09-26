@@ -130,14 +130,29 @@ class TestMonteCarloSummaries:
         assert out["probability_of_goal"] == pytest.approx(1 / 3)
         assert out["contributions"] == [100.0, 100.0]
 
-    def test_real_terms_deflate_values_but_not_probabilities(self):
+    def test_real_terms_deflate_values_and_count_each_payment_at_face_value(self):
         nominal = quick_projection(10_000, 100, 0.05, 0.1, years=5, n_simulations=400, goal_amount=12_000)
         real = quick_projection(10_000, 100, 0.05, 0.1, years=5, n_simulations=400, goal_amount=12_000,
                                 real_terms=True)
         assert real["percentile_50"][-1] == pytest.approx(nominal["percentile_50"][-1] / 1.025 ** 5, rel=1e-6)
+        # Contributions rise with inflation, so in today's money each one is worth what it says.
+        assert real["contributions"] == [10_000 + 1_200 * y for y in range(6)]
+        assert nominal["contributions"][-1] > real["contributions"][-1]
+        # The goal is stated in today's money either way.
         assert real["probability_of_goal"] == nominal["probability_of_goal"]
-        assert real["probability_of_loss"] == nominal["probability_of_loss"]
+        # Losing to inflation counts as a loss in today's money.
+        assert real["probability_of_loss"] >= nominal["probability_of_loss"]
         assert real["real_terms"] is True and nominal["real_terms"] is False
+
+    def test_a_real_loss_can_hide_behind_a_nominal_gain(self):
+        # Flat at 100 for a year while prices rise 10%: no loss in pounds, a loss in what it buys.
+        paths = np.array([[100.0] * 13])
+        nominal = summarise_paths(paths, 100.0, 0.0, 1, inflation_rate=0.10)
+        real = summarise_paths(paths, 100.0, 0.0, 1, real_terms=True, inflation_rate=0.10)
+        assert nominal["probability_of_loss"] == 0.0
+        assert real["probability_of_loss"] == 1.0
+        assert real["contributions"] == [100.0, 100.0]
+        assert real["percentile_50"][-1] == pytest.approx(100 / 1.1, abs=0.01)
 
     def test_api_projects_an_unsaved_preview(self, api):
         client, _ = api

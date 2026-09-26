@@ -45,7 +45,7 @@ test('the page never scrolls sideways', async ({ page }) => {
     expect(overflow).toBeLessThanOrEqual(0)
 })
 
-for (const path of ['/', '/dashboard', '/styleguide']) {
+for (const path of ['/', '/start', '/styleguide']) {
     test(`keyboard users can skip to content on ${path}`, async ({ page, isMobile }) => {
         test.skip(isMobile, 'keyboard navigation is a desktop concern')
         await page.goto(path)
@@ -63,8 +63,8 @@ for (const path of ['/', '/dashboard', '/styleguide']) {
 test('the shell marks the page and offers the one new action', async ({ page }) => {
     await page.goto('/styleguide')
     const nav = page.getByRole('navigation', { name: 'Main' })
-    await expect(nav.getByRole('link')).toHaveText(['Portfolios', 'Dashboard'])
-    await expect(page.getByRole('link', { name: 'Build a portfolio' })).toHaveAttribute('href', '/onboarding')
+    await expect(nav.getByRole('link')).toHaveText(['How it works', 'Portfolios'])
+    await expect(page.getByRole('link', { name: 'Build a portfolio' })).toHaveAttribute('href', '/start')
     await expect(page.getByRole('contentinfo')).toContainText('not financial')
 })
 

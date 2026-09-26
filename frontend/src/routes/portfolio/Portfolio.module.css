@@ -1,0 +1,74 @@
+.page {
+    display: grid;
+    gap: var(--space-10);
+    padding: var(--space-8) 0 var(--space-4);
+}
+
+.head {
+    display: grid;
+    gap: var(--space-3);
+}
+
+/* Each page opens with its sentence, set like a lead paragraph. */
+.title {
+    max-width: 32ch;
+    font-size: clamp(1.75rem, 1.35rem + 1.6vw, 2.5rem);
+    font-weight: var(--weight-regular);
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+}
+
+.lead {
+    max-width: var(--measure);
+    color: var(--color-ink-2);
+}
+
+.stats {
+    grid-template-columns: 1.4fr 1fr 1fr;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .stats {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .stats > :first-child {
+        grid-column: 1 / -1;
+    }
+}
+
+.status {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-3);
+}
+
+.empty {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-5);
+}
+
+.rowLink {
+    display: block;
+    font-weight: var(--weight-semibold);
+}
+
+.rowDetail {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+.back {
+    padding-top: var(--space-4);
+    border-top: var(--rule-hairline);
+    font-size: var(--fs-sm);
+}
+
+.loading {
+    padding: var(--space-6) 0;
+    font-size: var(--fs-sm);
+    color: var(--color-ink-3);
+}

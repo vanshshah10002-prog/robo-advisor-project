@@ -288,9 +288,9 @@ export const monteCarloSchema = z.object({
     probability_of_goal: z.number().nullish(),
     expected_final_value: z.number(),
     median_final_value: z.number(),
-    /** Total paid in by each year end. */
+    /** Total paid in by each year end; in today's money when `real_terms`. */
     contributions: z.array(z.number()),
-    /** Share of simulated paths worth less than was paid in, by year. */
+    /** Share of simulated paths worth less than was paid in, by year, on the same basis as the values. */
     loss_probability_by_year: z.array(z.number()),
     probability_of_loss: z.number().nullable(),
     real_terms: z.boolean(),

@@ -4,6 +4,7 @@ class, registry fixes, quote-currency handling and the ETF info endpoint.
 """
 
 import datetime
+import re
 from collections import Counter
 
 import numpy as np
@@ -75,6 +76,16 @@ class TestRegistry:
         for etf in get_all_etfs():
             r = client.get(f"/api/etf/{etf['ticker']}")
             assert r.status_code == 200, (etf["ticker"], r.text)
+
+    def test_every_core_block_has_a_written_name(self):
+        """Pages label holdings with these names; a title-cased id reads "Europe Ex Uk Equity"."""
+        from backend.main import app
+        classes = {c["id"]: c for c in TestClient(app).get("/api/asset-classes").json()}
+        for ac in CORE_UNIVERSE:
+            assert ac in classes, ac
+            # The untitled fallback has no description, and title-cases acronyms.
+            assert classes[ac]["description"], ac
+            assert not re.search(r"(Uk|Us|Esg|Reits?)", classes[ac]["name"]), classes[ac]["name"]
 
 
 class TestQuoteUnits:

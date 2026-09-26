@@ -1,0 +1,109 @@
+.page {
+    display: grid;
+    gap: var(--space-8);
+    padding: var(--space-8) 0 var(--space-4);
+}
+
+/* ── Progress: four ruled steps, numbered like a statement's sections ───── */
+
+.progress ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: 0;
+    list-style: none;
+}
+
+.progress li {
+    padding-top: var(--space-2);
+    border-top: 2px solid var(--color-rule);
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+.progress li > * {
+    display: grid;
+    gap: 0.125rem;
+    text-decoration: none;
+    color: inherit;
+}
+
+.progress li.done {
+    border-top-color: var(--color-ink-3);
+    color: var(--color-ink-2);
+}
+
+.progress li.done a:hover {
+    color: var(--color-accent);
+}
+
+.progress li.current {
+    border-top-color: var(--color-ink);
+    color: var(--color-ink);
+    font-weight: var(--weight-semibold);
+}
+
+.stepNumber {
+    font-family: var(--font-figures);
+    font-size: var(--fs-md);
+    font-weight: var(--weight-regular);
+    font-variant-numeric: lining-nums;
+}
+
+@media (max-width: 640px) {
+    /* On phones only the numbers show; the current step keeps its name. */
+    .progress li:not(.current) > * > span:not(.stepNumber) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+}
+
+/* ── Form: one column, the eye runs straight down ──────────────────────── */
+
+.form {
+    display: grid;
+    gap: var(--space-6);
+    max-width: 38rem;
+}
+
+.head {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.title {
+    font-size: var(--fs-3xl);
+    font-weight: var(--weight-regular);
+}
+
+.intro {
+    max-width: 34rem;
+    font-size: var(--fs-md);
+    color: var(--color-ink-2);
+}
+
+.fields {
+    display: grid;
+    gap: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: var(--rule-hairline);
+}
+
+.actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-4);
+    padding-top: var(--space-6);
+    border-top: var(--rule-ink);
+}
+
+.loading {
+    padding: var(--space-6) 0;
+    font-size: var(--fs-sm);
+    color: var(--color-ink-3);
+}

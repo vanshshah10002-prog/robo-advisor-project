@@ -166,23 +166,30 @@ def summarise_paths(
     Year-end percentiles and plain-English probabilities from simulated paths.
 
     - `contributions`: total paid in by each year end.
-    - `loss_probability_by_year`: share of paths worth less than was paid in.
+    - `loss_probability_by_year`: share of paths worth less than was paid in,
+      compared on the same basis as the values shown.
     - `probability_of_goal`: share of paths reaching `goal_amount`, where the
       goal is in today's money (inflated to the horizon before comparing).
-    - `real_terms`: percentiles and contributions are divided by cumulative
-      inflation, i.e. shown in today's money. Probabilities do not change.
+    - `real_terms`: values are divided by cumulative inflation, i.e. shown in
+      today's money. Each payment is counted at its value when paid: the
+      contributions rise with inflation, so in today's money every one is
+      worth its face amount, and the lump sum stays the lump sum. A path that
+      only keeps up with prices in pounds is therefore a loss in real terms.
     """
     year_indices = [0] + [i * 12 for i in range(1, years + 1)]
     yearly = all_paths[:, year_indices]
-    paid_in = paid_in_by_year(initial_investment, monthly_contribution, years, inflation_rate)
-    deflator = (1.0 + inflation_rate) ** np.arange(years + 1) if real_terms else np.ones(years + 1)
+    if real_terms:
+        shown = yearly / (1.0 + inflation_rate) ** np.arange(years + 1)
+        paid_in = paid_in_by_year(initial_investment, monthly_contribution, years, inflation_rate=0.0)
+    else:
+        shown = yearly
+        paid_in = paid_in_by_year(initial_investment, monthly_contribution, years, inflation_rate)
 
-    shown = yearly / deflator
     final = yearly[:, -1]
     prob_goal = None
     if goal_amount is not None:
         prob_goal = float(np.mean(final >= goal_amount * (1.0 + inflation_rate) ** years))
-    loss_by_year = np.mean(yearly < paid_in - 1e-9, axis=0)
+    loss_by_year = np.mean(shown < paid_in - 1e-9, axis=0)
 
     def pct(q: int) -> list[float]:
         return [round(float(v), 2) for v in np.percentile(shown, q, axis=0)]
@@ -197,7 +204,7 @@ def summarise_paths(
         "expected_final_value": round(float(np.mean(shown[:, -1])), 2),
         "median_final_value": round(float(np.median(shown[:, -1])), 2),
         "probability_of_goal": prob_goal,
-        "contributions": [round(float(v), 2) for v in paid_in / deflator],
+        "contributions": [round(float(v), 2) for v in paid_in],
         "loss_probability_by_year": [round(float(v), 4) for v in loss_by_year],
         "probability_of_loss": round(float(loss_by_year[-1]), 4),
         "real_terms": real_terms,

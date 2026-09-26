@@ -1,0 +1,66 @@
+.notice {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-left: 3px solid currentColor;
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+}
+
+.info {
+    background: var(--color-accent-wash);
+    color: var(--color-accent);
+}
+
+.warn {
+    background: var(--color-warn-wash);
+    color: var(--color-warn);
+}
+
+.error {
+    background: var(--color-loss-wash);
+    color: var(--color-loss);
+}
+
+.icon {
+    margin-top: 0.125rem;
+    font-size: 1.125rem;
+}
+
+/* Words stay ink; only the rule and the icon carry the tone. */
+.body {
+    display: grid;
+    gap: var(--space-1);
+    color: var(--color-ink);
+}
+
+.title {
+    font-weight: var(--weight-semibold);
+}
+
+.text {
+    color: var(--color-ink-2);
+}
+
+.action {
+    margin-top: var(--space-2);
+}
+
+.summary:focus-visible,
+.summary:focus {
+    outline: var(--focus-ring-width) solid var(--color-loss);
+    outline-offset: 2px;
+}
+
+.list {
+    display: grid;
+    gap: var(--space-1);
+    padding-left: var(--space-4);
+}
+
+.list a {
+    color: var(--color-loss);
+    font-weight: var(--weight-semibold);
+}

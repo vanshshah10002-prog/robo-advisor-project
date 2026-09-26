@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
     render() {
         if (!this.state.error) return this.props.children
         return (
-            <main className={styles.root} role="alert">
+            <div className={styles.root} role="alert">
                 <p className="label">Something went wrong</p>
                 <h1 className={styles.title}>This page could not be displayed.</h1>
                 <p className={styles.body}>
@@ -49,7 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     <summary>Technical details</summary>
                     <pre>{this.state.error.message}</pre>
                 </details>
-            </main>
+            </div>
         )
     }
 }

@@ -30,6 +30,11 @@ export class ApiError extends Error {
     }
 }
 
+/** True for a 404 from the API: the thing asked for does not exist (yet). */
+export function isNotFound(error: unknown): boolean {
+    return error instanceof ApiError && error.isNotFound
+}
+
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 export interface RequestOptions {

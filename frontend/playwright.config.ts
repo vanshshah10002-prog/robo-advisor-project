@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 /**
  * Browser checks against the Vite dev server. Uses the installed Chrome
- * (`channel: 'chrome'`) so no browser download is needed. The smoke suite
- * does not need the API; journeys that do are added with the backend in Phase 3.
+ * (`channel: 'chrome'`) so no browser download is needed. No test needs the
+ * backend: the journey stubs the API with the same fixtures as the unit tests.
  */
 export default defineConfig({
     testDir: './e2e',
@@ -11,6 +11,8 @@ export default defineConfig({
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 1 : 0,
     reporter: process.env.CI ? 'github' : 'list',
+    // A cold dev server compiles each page on first visit, which can pass five seconds.
+    expect: { timeout: 10_000 },
     use: {
         baseURL: 'http://127.0.0.1:5173',
         trace: 'retain-on-failure',

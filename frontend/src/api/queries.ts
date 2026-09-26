@@ -155,11 +155,13 @@ export const useUniverse = (portfolioId?: number) =>
         staleTime: 60 * MINUTE,
     })
 
+/** Switching level keeps the last record on screen until the next arrives. */
 export const useTrackRecord = (risk: number | null) =>
     useQuery({
         queryKey: keys.trackRecord(risk ?? -1),
         queryFn: ({ signal }) => api.getTrackRecord(risk as number, { signal }),
         enabled: risk !== null,
+        placeholderData: keepPreviousData,
         staleTime: Infinity,
     })
 

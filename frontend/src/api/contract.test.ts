@@ -60,6 +60,9 @@ describe('recorded API responses parse with the app schemas', () => {
         const mc = monteCarloSchema.parse(monteCarlo)
         expect(mc.contributions).toHaveLength(mc.years.length)
         expect(mc.loss_probability_by_year).toHaveLength(mc.years.length)
+        // Recorded with £50,000 and £250 a month over 15 years, in real terms: contributions
+        // rise with inflation, so in today's money each one counts at face value.
+        expect(mc.contributions.at(-1)).toBe(50_000 + 250 * 12 * 15)
 
         const tr = trackRecordSchema.parse(trackRecord)
         expect(tr.series[0].strategy).toBe(tr.initial)

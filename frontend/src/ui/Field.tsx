@@ -11,6 +11,8 @@ export interface ControlProps {
 }
 
 export interface FieldProps {
+    /** Fixed id for the control, so an error summary can link to it. Generated when omitted. */
+    id?: string
     label: ReactNode
     /** Plain-English help shown under the label, e.g. why we ask. */
     hint?: ReactNode
@@ -21,8 +23,9 @@ export interface FieldProps {
     children: (control: ControlProps) => ReactNode
 }
 
-export function Field({ label, hint, error, optional = false, className, children }: FieldProps) {
-    const id = useId()
+export function Field({ id: fixedId, label, hint, error, optional = false, className, children }: FieldProps) {
+    const generated = useId()
+    const id = fixedId ?? generated
     const hintId = hint ? `${id}-hint` : undefined
     const errorId = error ? `${id}-error` : undefined
     const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined
