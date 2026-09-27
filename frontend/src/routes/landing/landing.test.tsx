@@ -5,7 +5,7 @@ import type { TrackRecord } from '@/api/schemas'
 import { useIdentity } from '@/store/session'
 import { renderApp, stubApi, warmPages, type Call } from '@/test/app'
 import * as fx from '@/test/fixtures'
-import { trackRecordSentence } from './evidence'
+import { benchmarkLabel, benchmarkNames, trackRecordSentence } from './evidence'
 
 warmPages(() => import('./LandingPage'))
 
@@ -13,17 +13,32 @@ const record = fx.trackRecord as TrackRecord
 const atLevel = (c: Call) => ({ ...fx.trackRecord, risk: Number(c.query.get('risk')) })
 
 describe('trackRecordSentence', () => {
-    it('says so when the simple benchmark did better', () => {
+    it('says so when the benchmark did better, naming what it holds', () => {
         expect(trackRecordSentence(record)).toBe(
-            'At level 5, £100,000 run through these rules from 27 Sept 2021 would have ended at £124,518, or 4.5% a year. ' +
-                'A simple two-fund portfolio with the same share in shares did better, at 5.9% a year. ' +
-                'At its worst it was 22.7% below its previous high, against 13.0% for the two-fund portfolio.',
+            'In the backtest at risk level 5, £100,000 invested from 27 Sept 2021 would have ended at £124,518, an annualised return of 4.5%. ' +
+                'A benchmark of 50% VWRL.L and 50% AGBP.L did better, at 5.9% a year. ' +
+                'The strategy’s maximum drawdown was 22.7%, against 13.0% for the benchmark.',
         )
     })
 
-    it('says the rules beat the benchmark only when they did', () => {
+    it('says the strategy beat the benchmark only when it did', () => {
         const ahead = { ...record, strategy: { ...record.strategy, cagr: 0.07 } }
-        expect(trackRecordSentence(ahead)).toContain('or 7.0% a year. That beat a simple two-fund portfolio with the same share in shares, which made 5.9% a year.')
+        expect(trackRecordSentence(ahead)).toContain('an annualised return of 7.0%. That beat a benchmark of 50% VWRL.L and 50% AGBP.L, which returned 5.9% a year.')
+    })
+})
+
+describe('the benchmark', () => {
+    it('is labelled by its funds and shares, and named in full', () => {
+        expect(benchmarkLabel(record)).toBe('Benchmark: 50% VWRL.L + 50% AGBP.L')
+        expect(benchmarkNames(record)).toBe(
+            '50% in Vanguard FTSE All-World UCITS ETF (GBP) (VWRL.L) and 50% in iShares Core Global Aggregate Bond UCITS ETF (GBP Hedged) (AGBP.L)',
+        )
+    })
+
+    it('reads a single fund at the top level', () => {
+        const allShares = { ...record, benchmark_funds: [{ ticker: 'VWRL.L', name: 'Vanguard FTSE All-World UCITS ETF (GBP)', weight: 1 }] }
+        expect(benchmarkLabel(allShares)).toBe('Benchmark: 100% VWRL.L')
+        expect(benchmarkNames(allShares)).toBe('100% in Vanguard FTSE All-World UCITS ETF (GBP) (VWRL.L)')
     })
 })
 
@@ -39,7 +54,10 @@ describe('the front page', () => {
             'See it before it is saved',
             'Follow it in plain figures',
         ])
-        expect(await screen.findByText(/^At level 5, £100,000 run through these rules/)).toBeInTheDocument()
+        expect(await screen.findByText(/^In the backtest at risk level 5, £100,000 invested/)).toBeInTheDocument()
+        const chart = screen.getByRole('figure', { name: '£100,000 at risk level 5, week by week' })
+        expect(within(chart).getByText('This strategy (backtest)')).toBeInTheDocument()
+        expect(within(chart).getByText('Benchmark: 50% VWRL.L + 50% AGBP.L')).toBeInTheDocument()
         expect(screen.queryByRole('link', { name: 'Go to your portfolio' })).not.toBeInTheDocument()
     })
 
@@ -48,9 +66,9 @@ describe('the front page', () => {
         const calls = stubApi({ '/api/strategy/track-record': atLevel })
         renderApp('/')
 
-        await screen.findByText(/^At level 5,/)
+        await screen.findByText(/^In the backtest at risk level 5,/)
         await user.click(screen.getByRole('radio', { name: 'Level 7' }))
-        expect(await screen.findByText(/^At level 7,/)).toBeInTheDocument()
+        expect(await screen.findByText(/^In the backtest at risk level 7,/)).toBeInTheDocument()
         expect(calls.map((c) => c.query.get('risk'))).toEqual(['5', '7'])
     })
 

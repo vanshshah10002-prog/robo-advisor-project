@@ -11,7 +11,9 @@ import pytest
 from backend.config import CORE_UNIVERSE, POLICY_BLOCK_MAX
 from backend.engine.monte_carlo import paid_in_by_year, quick_projection, summarise_paths
 from backend.engine.universe_view import build_universe
-from backend.eval.track_record import build_artefact, calendar_years, track_record_entry, weekly_series
+from backend.eval.track_record import (
+    benchmark_funds, benchmark_mix, build_artefact, calendar_years, track_record_entry, weekly_series,
+)
 from backend.eval.walkforward_backtest import BacktestResult, Decision
 
 
@@ -87,6 +89,18 @@ class TestTrackRecord:
         assert entry["forecast_volatility"] == pytest.approx(0.115)
         assert entry["series"][0]["date"] == "2024-12-20"
 
+    def test_benchmark_holds_the_same_share_in_shares_as_the_risk_level(self):
+        assert benchmark_mix(3) == {"VWRL.L": 0.3, "AGBP.L": 0.7}
+        assert benchmark_mix(5) == {"VWRL.L": 0.5, "AGBP.L": 0.5}
+        assert benchmark_mix(10) == {"VWRL.L": 1.0}
+
+    def test_benchmark_funds_are_named_from_the_fund_registry(self):
+        funds = benchmark_funds(3)
+        assert [(f["ticker"], f["weight"]) for f in funds] == [("VWRL.L", 0.3), ("AGBP.L", 0.7)]
+        assert funds[0]["name"] == "Vanguard FTSE All-World UCITS ETF (GBP)"
+        assert funds[1]["name"] == "iShares Core Global Aggregate Bond UCITS ETF (GBP Hedged)"
+        assert benchmark_funds(10) == [{"ticker": "VWRL.L", "name": "Vanguard FTSE All-World UCITS ETF (GBP)", "weight": 1.0}]
+
     def test_artefact_is_json_safe(self):
         art = build_artefact({3: {"x": float("nan")}}, "2021-09-27", "2026-09-25", 100_000.0, "now", "then")
         assert json.loads(json.dumps(art))["risks"]["3"]["x"] is None
@@ -104,6 +118,7 @@ class TestTrackRecord:
 
         body = client.get("/api/strategy/track-record?risk=5").json()
         assert body["risk"] == 5 and body["benchmark_label"] == "Two-fund 50%/50%"
+        assert body["benchmark_funds"] == benchmark_funds(5)
         assert body["notes"] and body["series"]
         assert client.get("/api/strategy/track-record?risk=4").status_code == 404
         assert client.get("/api/strategy/track-record?risk=11").status_code == 422
@@ -114,6 +129,19 @@ class TestTrackRecord:
         data = insight.load_track_record()
         assert data is not None, "run scripts/build_track_record.py"
         assert sorted(int(r) for r in data["risks"]) == list(range(1, 11))
+
+    def test_served_benchmark_funds_match_the_committed_artefact(self):
+        """The funds are named from today's code; the series were built earlier. Rebuild the artefact if they part."""
+        import re
+
+        import backend.api.routes.insight as insight
+        insight._load_track_record.cache_clear()
+        data = insight.load_track_record()
+        assert data is not None
+        for risk, entry in data["risks"].items():
+            shares, bonds = (int(p) / 100 for p in re.fullmatch(r"Two-fund (\d+)%/(\d+)%", entry["benchmark_label"]).groups())
+            served = {f["ticker"]: f["weight"] for f in benchmark_funds(int(risk))}
+            assert served == {k: v for k, v in {"VWRL.L": shares, "AGBP.L": bonds}.items() if v > 0}, risk
 
 
 class TestMonteCarloSummaries:

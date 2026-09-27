@@ -51,6 +51,29 @@ describe('ChoiceGroup', () => {
         await user.keyboard('1')
         expect(screen.getByRole('radio', { name: 'Hold' })).toBeChecked()
     })
+
+    it('explains an option with a tip on hover and focus, outside its label', async () => {
+        const user = userEvent.setup()
+        const options = [
+            { value: 'a', label: 'Adjusted', tip: 'Shown at today’s prices.' },
+            { value: 'b', label: 'Not adjusted' },
+        ] as const
+        render(<ChoiceGroup legend="Show amounts" options={options} value="a" onChange={() => {}} />)
+        const adjusted = screen.getByRole('radio', { name: 'Adjusted' })
+        expect(adjusted).toHaveAccessibleDescription('Shown at today’s prices.')
+        expect(screen.getByRole('radio', { name: 'Not adjusted' })).not.toHaveAccessibleDescription()
+        const tip = screen.getByText('Shown at today’s prices.')
+        expect(tip.closest('label')).toBeNull()
+        expect(tip).not.toBeVisible()
+
+        await user.hover(screen.getByText('Adjusted'))
+        expect(tip).toBeVisible()
+        await user.unhover(screen.getByText('Adjusted'))
+        expect(tip).not.toBeVisible()
+        await user.tab()
+        expect(adjusted).toHaveFocus()
+        expect(tip).toBeVisible()
+    })
 })
 
 describe('Slider', () => {

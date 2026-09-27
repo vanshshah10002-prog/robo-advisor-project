@@ -454,12 +454,19 @@ class TrackRecordYear(BaseModel):
     partial: bool
 
 
+class BenchmarkFund(BaseModel):
+    ticker: str
+    name: str
+    weight: float
+
+
 class TrackRecordResponse(BaseModel):
     risk: int
     start: str
     end: str
     initial: float
     benchmark_label: str
+    benchmark_funds: list[BenchmarkFund]    # what the comparison holds, by name
     strategy: TrackRecordSummary
     benchmark: TrackRecordSummary
     costs_gbp: float

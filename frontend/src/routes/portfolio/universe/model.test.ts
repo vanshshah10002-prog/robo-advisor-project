@@ -96,8 +96,8 @@ describe('universeSentence', () => {
 describe('riskSentence', () => {
     it('leads with the biggest source of risk, then the least risk for its size', () => {
         expect(riskSentence(rows)).toBe(
-            'The biggest source of risk: US shares, 45% of the money but 71% of the risk. ' +
-                'Least for its size: Cash-like fund, 15% of the money but under 1% of the risk.',
+            'The biggest source of risk: US shares, 45% of the value but 71% of the risk. ' +
+                'Least for its size: Cash-like fund, 15% of the value but under 1% of the risk.',
         )
     })
 
@@ -107,13 +107,13 @@ describe('riskSentence', () => {
             { ...row('uk_equity'), weight: 0.399, riskShare: 0.396 },
         ]
         expect(riskSentence(even)).toBe(
-            'The biggest source of risk: US shares, 60% of the money and 60% of the risk. Least for its size: UK shares, 40% of the money and 40% of the risk.',
+            'The biggest source of risk: US shares, 60% of the value and 60% of the risk. Least for its size: UK shares, 40% of the value and 40% of the risk.',
         )
         const lopsided = [
             { ...row('us_equity'), weight: 0.9, riskShare: 0.85 },
             { ...row('uk_equity'), weight: 0.1, riskShare: 0.15 },
         ]
-        expect(riskSentence(lopsided)).toBe('The biggest source of risk: US shares, 90% of the money but 85% of the risk.')
+        expect(riskSentence(lopsided)).toBe('The biggest source of risk: US shares, 90% of the value but 85% of the risk.')
     })
 
     it('says a holding lowers the risk when its share is below zero', () => {
@@ -122,7 +122,7 @@ describe('riskSentence', () => {
             { ...row('commodities_gold'), weight: 0.05, riskShare: -0.02 },
         ]
         expect(riskSentence(hedged)).toBe(
-            'The biggest source of risk: US shares, 95% of the money but 102% of the risk. Least for its size: Gold, 5% of the money, and it lowers the risk overall.',
+            'The biggest source of risk: US shares, 95% of the value but 102% of the risk. Least for its size: Gold, 5% of the value, and it lowers the risk overall.',
         )
     })
 

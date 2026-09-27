@@ -51,13 +51,13 @@ test('every section of an opened portfolio, then adding money and rebalancing', 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^Worth £124,518/)
     await noSidewaysScroll(page)
 
-    await openSection(page, 'Performance', /^Since it opened on 30 Jun 2025, it has returned \+12\.0%/)
+    await openSection(page, 'Performance', /^Since it opened on 30 Jun 2025, it has a time-weighted return of \+12\.0%/)
     await expect(page.getByRole('table', { name: 'Returns by period' })).toBeAttached()
 
     await openSection(page, 'Asset universe', /^8 of the 13 building blocks are held/)
     await expect(page.getByRole('img', { name: /^Correlations between 8 funds/ })).toBeVisible()
 
-    await openSection(page, 'Outlook', /^In 15 years, in today's money/)
+    await openSection(page, 'Outlook', /^In 15 years, adjusted for inflation, the median projection/)
     await expect(page.getByRole('figure', { name: 'What £124,518 could become' })).toBeVisible()
 
     await openSection(page, 'Activity', /^2 transactions since 27 Sept 2021/)
@@ -69,5 +69,33 @@ test('every section of an opened portfolio, then adding money and rebalancing', 
     await noSidewaysScroll(page)
 
     expect(posted).toEqual(['contribute', 'execute'])
+    expect(errors).toEqual([])
+})
+
+test('a term opens its explanation beside it, inside the screen, and keeps it open under the pointer', async ({ page }) => {
+    const errors = collectErrors(page)
+    await stubWorkspace(page)
+    await returningBrowser(page, ID)
+    await page.goto(`/portfolio/${ID}`)
+
+    const stats = page.getByRole('complementary', { name: 'Portfolio statistics' })
+    const term = stats.locator('dt', { hasText: 'Sharpe ratio' }).locator('[tabindex="0"]')
+    await term.scrollIntoViewIfNeeded()
+    await term.hover()
+    const tip = page.getByText(/^Expected return above the risk-free rate/)
+    await expect(tip).toBeVisible()
+
+    const [at, box, screen] = [await term.boundingBox(), await tip.boundingBox(), page.viewportSize()]
+    if (!at || !box || !screen) throw new Error('nothing to measure')
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(screen.width)
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.y + box.height).toBeLessThanOrEqual(screen.height)
+    // Directly above or below the term, not somewhere else on the page.
+    expect(Math.min(Math.abs(box.y + box.height - at.y), Math.abs(box.y - (at.y + at.height)))).toBeLessThan(12)
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 })
+    await expect(tip).toBeVisible()
+    await page.keyboard.press('Escape')
     expect(errors).toEqual([])
 })

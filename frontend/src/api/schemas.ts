@@ -478,6 +478,8 @@ export const trackRecordSchema = z.object({
     end: isoDate,
     initial: z.number(),
     benchmark_label: z.string(),
+    /** What the comparison holds, by name: world shares, then hedged global bonds. */
+    benchmark_funds: z.array(z.object({ ticker: z.string(), name: z.string(), weight: z.number() })),
     strategy: trackRecordSummarySchema,
     benchmark: trackRecordSummarySchema,
     costs_gbp: z.number(),

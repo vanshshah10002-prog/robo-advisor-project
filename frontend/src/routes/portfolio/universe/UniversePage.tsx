@@ -62,7 +62,7 @@ function Body({ universe, snapshot }: { universe: Universe; snapshot: Constructi
 function estimatesNote(snapshot: ConstructionSnapshot): string {
     return (
         `Estimates made when the portfolio was opened, on ${date(snapshot.as_of)}. Volatilities include a ${decimal(snapshot.vol_calibration, 2)}× ` +
-        'allowance, because testing found real swings ran 10–20% larger than the raw estimates.'
+        'allowance, because testing found realised volatility ran 10–20% above the raw estimates.'
     )
 }
 
@@ -74,11 +74,11 @@ function RiskShares({ rows, snapshot }: { rows: readonly BlockRow[]; snapshot: C
             summary={riskSentence(rows) ?? undefined}
             provenance="estimated"
             series={[
-                { label: 'Share of the money', colour: CHART_INK.axis },
-                { label: 'Share of the risk', colour: CATEGORICAL[0] },
+                { label: 'Share of value', colour: CHART_INK.axis },
+                { label: 'Risk contribution', colour: CATEGORICAL[0] },
             ]}
             items={held.map((r) => ({ key: r.assetClass, label: r.name, detail: r.held?.ticker, values: [r.weight ?? 0, r.riskShare ?? 0] }))}
-            notes={`Share of the risk is each holding's part of the portfolio's expected swings, allowing for how the funds move together. ${estimatesNote(snapshot)}`}
+            notes={`Risk contribution is each holding's share of the portfolio's volatility, allowing for how the funds move together. ${estimatesNote(snapshot)}`}
         />
     )
 }

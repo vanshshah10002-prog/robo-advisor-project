@@ -2,10 +2,14 @@ import { WarningCircle } from '@phosphor-icons/react'
 import { clsx } from 'clsx'
 import { useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import styles from './ChoiceGroup.module.css'
+import { TipText } from './Term'
+import { useTip } from './useTip'
 
 export interface ChoiceOption<V extends string | number> {
     value: V
     label: ReactNode
+    /** A short explanation, shown on hover or focus and read as the radio's description. */
+    tip?: string
 }
 
 export interface ChoiceGroupProps<V extends string | number> {
@@ -78,27 +82,66 @@ export function ChoiceGroup<V extends string | number>({
             )}
             <div className={clsx(styles.options, inline && styles.inline)}>
                 {options.map((option, i) => (
-                    <label key={String(option.value)} className={styles.option}>
-                        <input
-                            ref={(el) => {
-                                inputs.current[i] = el
-                            }}
-                            id={i === 0 ? base : undefined}
-                            type="radio"
-                            name={base}
-                            className={styles.radio}
-                            checked={value === option.value}
-                            onChange={() => onChange(option.value)}
-                        />
-                        {numbered && (
-                            <span className={styles.number} aria-hidden="true">
-                                {i + 1}
-                            </span>
-                        )}
-                        <span className={styles.text}>{option.label}</span>
-                    </label>
+                    <Choice
+                        key={String(option.value)}
+                        option={option}
+                        id={i === 0 ? base : undefined}
+                        name={base}
+                        number={numbered ? i + 1 : undefined}
+                        checked={value === option.value}
+                        onChange={() => onChange(option.value)}
+                        inputRef={(el) => {
+                            inputs.current[i] = el
+                        }}
+                    />
                 ))}
             </div>
         </fieldset>
+    )
+}
+
+interface ChoiceProps<V extends string | number> {
+    option: ChoiceOption<V>
+    id?: string
+    name: string
+    number?: number
+    checked: boolean
+    onChange: () => void
+    inputRef: (el: HTMLInputElement | null) => void
+}
+
+/**
+ * One option. Its tip sits beside the label rather than in it, so clicking
+ * the tip never picks the option, and it opens while the option is hovered
+ * or its radio has focus.
+ */
+function Choice<V extends string | number>({ option, id, name, number, checked, onChange, inputRef }: ChoiceProps<V>) {
+    const tip = useTip()
+    return (
+        <>
+            <label className={styles.option} {...(option.tip ? tip.anchor : {})}>
+                <input
+                    ref={inputRef}
+                    id={id}
+                    type="radio"
+                    name={name}
+                    className={styles.radio}
+                    checked={checked}
+                    onChange={onChange}
+                    aria-describedby={option.tip ? tip.id : undefined}
+                />
+                {number !== undefined && (
+                    <span className={styles.number} aria-hidden="true">
+                        {number}
+                    </span>
+                )}
+                <span className={styles.text}>{option.label}</span>
+            </label>
+            {option.tip && (
+                <TipText id={tip.id} open={tip.open} below={tip.below} style={tip.style}>
+                    {option.tip}
+                </TipText>
+            )}
+        </>
     )
 }

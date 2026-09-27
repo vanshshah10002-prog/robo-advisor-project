@@ -103,8 +103,8 @@ export function performanceSentence(history: History): string {
         return `Opened on ${date(first.date)}. Its value is recorded at each day's close, and the first close put it at ${against}.`
     }
     const fall = worstFall(points)
-    const worst = fall ? ` Its worst fall from a high was ${percent(-fall.value)}.` : ' It has not yet fallen below a previous high.'
-    return `Since it opened on ${date(first.date)}, it has returned ${signedPercent(last.cumulative_return)} and is worth ${against}.${worst}`
+    const worst = fall ? ` Its maximum drawdown was ${percent(-fall.value)}.` : ' It has not yet fallen below a previous high.'
+    return `Since it opened on ${date(first.date)}, it has a time-weighted return of ${signedPercent(last.cumulative_return)} and is worth ${against}.${worst}`
 }
 
 export interface HoldingGain {

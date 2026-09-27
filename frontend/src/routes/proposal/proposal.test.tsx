@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { GLOSSARY } from '@/lib/glossary'
 import type { Call } from '@/test/app'
 import { useIdentity, useOnboardingDraft } from '@/store/session'
 import { renderApp, stubApi, warmPages } from '@/test/app'
@@ -59,12 +60,14 @@ describe('the proposal', () => {
         expect(title).toBeInTheDocument()
         expect(screen.getByText('Your proposal · not saved')).toBeInTheDocument()
         expect(screen.getByText('Expected return').closest('div')).toHaveTextContent('6.5%')
-        expect(screen.getByText('Typical yearly swing').closest('div')).toHaveTextContent('±8.9%')
-        expect(screen.getByText('Fund costs').closest('div')).toHaveTextContent('£42')
+        expect(screen.getByText('Volatility').closest('div')).toHaveTextContent('8.9%')
+        expect(screen.getByText('Volatility')).toHaveAccessibleDescription(GLOSSARY.volatility)
+        expect(screen.getByText('Sharpe ratio').closest('div')).toHaveTextContent('0.25Against a 4.2% risk-free rate')
+        expect(screen.getByText('Ongoing charges').closest('div')).toHaveTextContent('£42')
         expect(screen.getByRole('table', { name: 'The funds in this proposal' })).toBeInTheDocument()
 
         expect(await screen.findByText('What £50,000 could become')).toBeInTheDocument()
-        expect(screen.getByText('Chance of ending below what you paid in').closest('div')).toHaveTextContent('6%')
+        expect(screen.getByText('Probability of a loss').closest('div')).toHaveTextContent(/6%Below the amount paid in after 15 years, adjusted for inflation$/)
         const projection = calls.find((c) => c.path === '/api/monte-carlo')
         expect(projection?.body).toEqual({
             annual_return: fx.preview.expected_annual_return,

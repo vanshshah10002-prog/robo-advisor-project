@@ -5,11 +5,12 @@ import { useAssetClassNames } from '@/api/names'
 import { useRiskProfile } from '@/api/queries'
 import type { MonteCarlo, Preview, PreviewRequest, RiskProfile } from '@/api/schemas'
 import { AllocationBar, DataTable, FanChart, FundCell, type Column } from '@/charts'
-import { money, percent } from '@/lib/format'
+import { decimal, money, percent } from '@/lib/format'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/ui/Button'
 import { Notice } from '@/ui/Notice'
 import { Stat, StatGroup } from '@/ui/Stat'
+import { Term } from '@/ui/Term'
 import { useIdentity } from '@/store/session'
 import { Controls, OpenPanel } from './Controls'
 import { proposalSentence } from './model'
@@ -95,17 +96,7 @@ function Figures({ preview, projection, years, pending }: { preview: Preview; pr
 
     return (
         <>
-            <StatGroup className={styles.stats}>
-                <Stat label="Expected return" provenance="estimated" value={percent(preview.expected_annual_return)} detail="A year, on average, before inflation" />
-                <Stat label="Typical yearly swing" provenance="estimated" value={`±${percent(preview.expected_volatility)}`} detail="Two years in three land within this of the average" />
-                <Stat label="Fund costs" value={money(preview.annual_fund_cost_gbp)} detail={`A year: ${percent(preview.total_expense_ratio, 2)} of the amount`} />
-                <Stat
-                    label="Chance of ending below what you paid in"
-                    provenance="simulated"
-                    value={projection?.probability_of_loss == null ? '…' : percent(projection.probability_of_loss, 0)}
-                    detail={`After ${years} year${years === 1 ? '' : 's'}, in today's money`}
-                />
-            </StatGroup>
+            <ProposalStats preview={preview} projection={projection} years={years} />
             <AllocationBar
                 title="What it would hold"
                 summary="Each fund's share, growth first. Hover or use the arrow keys to read one."
@@ -118,12 +109,49 @@ function Figures({ preview, projection, years, pending }: { preview: Preview; pr
     )
 }
 
+function ProposalStats({ preview, projection, years }: { preview: Preview; projection?: MonteCarlo; years: number }) {
+    const rf = preview.risk_free_rate
+    return (
+        <StatGroup className={styles.stats}>
+            <Stat
+                label={<Term explain="expectedReturn">Expected return</Term>}
+                provenance="estimated"
+                value={percent(preview.expected_annual_return)}
+                detail="A year, on average, before inflation"
+            />
+            <Stat
+                label={<Term explain="volatility">Volatility</Term>}
+                provenance="estimated"
+                value={percent(preview.expected_volatility)}
+                detail="Standard deviation of yearly returns"
+            />
+            <Stat
+                label={<Term explain="sharpe">Sharpe ratio</Term>}
+                provenance="estimated"
+                value={decimal(preview.sharpe_ratio, 2)}
+                detail={rf === null ? undefined : `Against a ${percent(rf)} risk-free rate`}
+            />
+            <Stat
+                label={<Term explain="ongoingCharges">Ongoing charges</Term>}
+                value={money(preview.annual_fund_cost_gbp)}
+                detail={`A year: ${percent(preview.total_expense_ratio, 2)} of the amount`}
+            />
+            <Stat
+                label={<Term explain="lossProbability">Probability of a loss</Term>}
+                provenance="simulated"
+                value={projection?.probability_of_loss == null ? '…' : percent(projection.probability_of_loss, 0)}
+                detail={`Below the amount paid in after ${years} year${years === 1 ? '' : 's'}, adjusted for inflation`}
+            />
+        </StatGroup>
+    )
+}
+
 function Projection({ projection, pending, amount }: { projection?: MonteCarlo; pending: boolean; amount: number }) {
     if (!projection) return <p className={styles.loading} aria-busy="true">Simulating the years ahead…</p>
     return (
         <FanChart
             title={`What ${money(amount)} could become`}
-            summary="In today's money. The bands hold 8 in 10, and half, of 2,000 simulated futures; the line is the middle one."
+            summary="Adjusted for inflation. The shaded bands are the 50% and 80% probability ranges of 2,000 simulated paths; the line is the median."
             data={{
                 years: projection.years,
                 p10: projection.percentile_10,
@@ -135,7 +163,10 @@ function Projection({ projection, pending, amount }: { projection?: MonteCarlo; 
             }}
             startYear={new Date().getFullYear()}
             pending={pending}
-            notes={`Simulated from the expected return and swing above, with fat-tailed yearly returns, after ${percent(projection.inflation_rate ?? 0.025)} inflation a year. Before fund costs. Not a forecast.`}
+            notes={
+                `Simulated from the expected return and volatility above, with fat-tailed yearly returns, adjusted for ` +
+                `${percent(projection.inflation_rate ?? 0.025)} inflation a year. After fund charges. Not a forecast.`
+            }
         />
     )
 }

@@ -74,7 +74,7 @@ test('charts read out from the keyboard and switch to a table', async ({ page, i
     const fan = page.getByRole('figure', { name: 'Your money, fifteen years on' })
     const plot = fan.getByRole('img')
     await plot.focus()
-    await expect(fan.locator('[aria-live="polite"]')).toHaveText(/^2041, year 15\. Best 1 in 10 above £/)
+    await expect(fan.locator('[aria-live="polite"]')).toHaveText(/^2041, year 15\. 10% probability above £/)
     await page.keyboard.press('Home')
     await expect(fan.locator('[aria-live="polite"]')).toHaveText(/^2026, now\./)
 

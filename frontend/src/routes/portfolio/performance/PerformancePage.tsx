@@ -10,6 +10,7 @@ import { Button } from '@/ui/Button'
 import { ChoiceGroup } from '@/ui/ChoiceGroup'
 import { Notice } from '@/ui/Notice'
 import { Stat, StatGroup } from '@/ui/Stat'
+import { Term } from '@/ui/Term'
 import { sectionTitle, usePortfolio } from '../context'
 import styles from '../Portfolio.module.css'
 import { HoldingGains } from './HoldingGains'
@@ -58,18 +59,23 @@ function Figures({ points, performance: p }: { points: readonly Point[]; perform
     return (
         <StatGroup>
             <Stat
-                label="Return since opening"
+                label={<Term explain="timeWeightedReturn">Time-weighted return</Term>}
                 provenance="measured"
                 value={signedPercent(sinceOpening)}
-                detail={last ? `To the close on ${date(last.date)}. Money paid in is not counted as growth` : undefined}
+                detail={last ? `Since opening, to the close on ${date(last.date)}. Money paid in is not counted as growth` : undefined}
             />
             <Stat label="Gain or loss" provenance="measured" value={signedMoney(p.total_value - p.net_contributions)} detail={`At the latest prices, on ${money(p.net_contributions)} paid in`} />
-            <Stat label="Worst fall from a high" provenance="measured" value={fall ? percent(-fall.value) : 'None yet'} detail={fall ? `Lowest on ${date(fall.date)}` : undefined} />
             <Stat
-                label="Expected when opened"
+                label={<Term explain="maxDrawdown">Maximum drawdown</Term>}
+                provenance="measured"
+                value={fall ? percent(-fall.value) : 'None yet'}
+                detail={fall ? `Low point on ${date(fall.date)}` : undefined}
+            />
+            <Stat
+                label={<Term explain="expectedReturn">Expected return</Term>}
                 provenance="estimated"
                 value={p.expected_return === null ? EMPTY : `${percent(p.expected_return)} a year`}
-                detail={yearly === null ? 'Too soon to compare: that takes a year of history' : `Realised so far: ${signedPercent(yearly)} a year`}
+                detail={yearly === null ? 'Estimated at opening. Too soon to compare: that takes a year of history' : `Annualised return so far: ${signedPercent(yearly)} a year`}
             />
         </StatGroup>
     )
@@ -106,11 +112,11 @@ function Charts({ points }: { points: readonly Point[] }) {
             />
             {!empty && (
                 <LineChart
-                    title="How far below its high"
-                    summary="Each day's time-weighted value against the highest it had reached; zero is a new high."
+                    title="Drawdown from the previous high"
+                    summary="How far each day's time-weighted value sat below the highest it had reached; zero is a new high."
                     provenance="measured"
                     dates={span.map((p) => p.date)}
-                    series={[{ key: 'fall', label: 'Below its high', colour: CATEGORICAL[3], values: drawdowns(span), variant: 'area' }]}
+                    series={[{ key: 'fall', label: 'Drawdown', colour: CATEGORICAL[3], values: drawdowns(span), variant: 'area' }]}
                     format={(v) => percent(v)}
                     height={180}
                 />
@@ -128,7 +134,7 @@ interface PeriodRow {
 
 const PERIOD_COLUMNS: Column<PeriodRow>[] = [
     { key: 'period', label: 'Period', render: (r) => r.label },
-    { key: 'return', label: 'Return, time-weighted', numeric: true, render: (r) => (r.value === null ? 'Not open that long' : signedPercent(r.value)) },
+    { key: 'return', label: 'Time-weighted return', numeric: true, render: (r) => (r.value === null ? 'Not open that long' : signedPercent(r.value)) },
 ]
 
 function PeriodReturns({ points }: { points: readonly Point[] }) {
@@ -136,7 +142,7 @@ function PeriodReturns({ points }: { points: readonly Point[] }) {
     const yearly = first && last ? annualised(last.cumulative_return, first.date, last.date) : null
     const rows: PeriodRow[] = [
         ...PERIODS.map((p) => ({ key: p.value, label: p.label, value: periodReturn(points, p.value) })),
-        ...(yearly === null ? [] : [{ key: 'yearly', label: 'A year, on average', value: yearly }]),
+        ...(yearly === null ? [] : [{ key: 'yearly', label: 'Annualised', value: yearly }]),
     ]
     return <DataTable caption="Returns by period" columns={PERIOD_COLUMNS} rows={rows} rowKey={(r) => r.key} />
 }

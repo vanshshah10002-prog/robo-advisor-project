@@ -2,6 +2,7 @@ import { useAssetClassNames } from '@/api/names'
 import type { Performance } from '@/api/schemas'
 import { DataTable, FundCell, type Column } from '@/charts'
 import { EMPTY, money, percentagePoints, signedMoney, signedPercent } from '@/lib/format'
+import { Term } from '@/ui/Term'
 import styles from '../Portfolio.module.css'
 import { holdingGains, sumOf, type HoldingGain } from './model'
 
@@ -15,17 +16,21 @@ export function HoldingGains({ performance: p }: { performance: Performance }) {
         { key: 'value', label: 'Value', numeric: true, render: (r) => money(r.value) },
         { key: 'cost', label: 'Cost', numeric: true, render: (r) => money(r.cost) },
         { key: 'gain', label: 'Gain or loss', numeric: true, render: (r) => signedMoney(r.gain) },
-        { key: 'onCost', label: 'On its cost', numeric: true, render: (r) => (r.gainOnCost === null ? EMPTY : signedPercent(r.gainOnCost)) },
-        { key: 'added', label: 'Added to return', numeric: true, render: (r) => (r.addedToReturn === null ? EMPTY : percentagePoints(r.addedToReturn)) },
+        { key: 'onCost', label: 'Return on cost', numeric: true, render: (r) => (r.gainOnCost === null ? EMPTY : signedPercent(r.gainOnCost)) },
+        { key: 'added', label: 'Contribution to return', numeric: true, render: (r) => (r.addedToReturn === null ? EMPTY : percentagePoints(r.addedToReturn)) },
     ]
+    // The terms are explained here rather than in the headers: on a phone the stacked table hides its
+    // header row, and a focusable term inside it would be a tab stop no one can see.
     return (
         <section className={styles.subsection} aria-labelledby="gains-title">
             <h2 id="gains-title" className={styles.sectionTitle}>
                 Gain or loss by holding
             </h2>
             <p className={styles.note}>
-                Cost includes what was paid to trade. "Added to return" is each holding's gain as a share of all the money paid in; together they make the gain
-                on what it holds now. Gains already taken by selling are listed under Activity.
+                Cost includes what was paid to trade. <Term explain="returnOnCost">Return on cost</Term> is each holding's gain on what its units
+                cost. <Term explain="contributionToReturn">Contribution to return</Term> is its gain as a share of all the money paid in, in{' '}
+                <Term explain="percentagePoints">pp</Term>; together they make the gain on what it holds now. Gains already taken by selling are
+                listed under Activity.
             </p>
             <DataTable
                 caption="Gain or loss by holding"

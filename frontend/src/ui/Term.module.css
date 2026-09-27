@@ -1,0 +1,69 @@
+/* A term with a dotted rule under it: there is more to know, a hover or a tap away. */
+.term {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--color-ink-3);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    cursor: help;
+}
+
+.term:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Fixed to the screen by useTip, and reset from whatever the term sits in:
+   an uppercase label, a bold header, a serif figure. */
+.tip {
+    z-index: 50;
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-sheet);
+    border: 1px solid var(--color-rule-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    font-family: var(--font-text);
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-regular);
+    font-style: normal;
+    font-variant-numeric: normal;
+    line-height: var(--lh-snug);
+    letter-spacing: normal;
+    text-align: left;
+    text-transform: none;
+    text-decoration: none;
+    white-space: normal;
+    color: var(--color-ink);
+    cursor: auto;
+}
+
+.tip[hidden] {
+    display: none;
+}
+
+/* A small gap from the term, bridged by an invisible strip so the pointer
+   can cross onto the tip without it closing. */
+.tip::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: calc(var(--space-2) + 1px);
+}
+
+.below {
+    margin-top: var(--space-2);
+}
+
+.below::before {
+    bottom: 100%;
+}
+
+.above {
+    margin-bottom: var(--space-2);
+}
+
+.above::before {
+    top: 100%;
+}

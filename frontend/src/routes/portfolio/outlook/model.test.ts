@@ -48,33 +48,33 @@ describe('outlookRequest', () => {
 })
 
 describe('outlookSentence', () => {
-    it('reads the middle and the 8-in-10 range at the horizon', () => {
+    it('reads the median and the 80% probability range at the horizon', () => {
         expect(outlookSentence(fx.monteCarloReal)).toBe(
-            "In 15 years, in today's money, the middle outcome is £141,357; 8 in 10 simulated outcomes land between £99,505 and £206,015.",
+            'In 15 years, adjusted for inflation, the median projection is £141,357, with an 80% probability of ending between £99,505 and £206,015.',
         )
     })
 
-    it('names the pounds of the day, and a single year', () => {
+    it('says when amounts are not adjusted for inflation, and reads a single year', () => {
         expect(outlookSentence(fx.monteCarlo)).toBe(
-            'In 1 year, in the pounds of the day, the middle outcome is £108,000; 8 in 10 simulated outcomes land between £98,000 and £119,000.',
+            'In 1 year, not adjusted for inflation, the median projection is £108,000, with an 80% probability of ending between £98,000 and £119,000.',
         )
     })
 })
 
 describe('lossSentence', () => {
-    it('reads the chance of a loss falling over the years', () => {
+    it('reads the probability of a loss falling over the years', () => {
         expect(lossSentence(fx.monteCarloReal)).toBe(
-            'The chance of being worth less than was paid in falls from 37% after a year to 6% after 15 years.',
+            'The probability of ending below the amount paid in falls from 37% after 1 year to 6% after 15 years.',
         )
     })
 
-    it('reads a rise, and a chance that stays the same', () => {
+    it('reads a rise, and a probability that stays the same', () => {
         const years = [0, 1, 2]
         expect(lossSentence({ ...fx.monteCarlo, years, loss_probability_by_year: [0, 0.1, 0.2] })).toBe(
-            'The chance of being worth less than was paid in rises from 10% after a year to 20% after 2 years.',
+            'The probability of ending below the amount paid in rises from 10% after 1 year to 20% after 2 years.',
         )
         expect(lossSentence({ ...fx.monteCarlo, years, loss_probability_by_year: [0, 0.1, 0.1] })).toBe(
-            'The chance of being worth less than was paid in stays at 10% throughout.',
+            'The probability of ending below the amount paid in stays at 10% throughout.',
         )
     })
 
@@ -86,8 +86,8 @@ describe('lossSentence', () => {
 describe('accuracyNote', () => {
     it('compares the backtest with a well-judged forecast', () => {
         expect(accuracyNote(fx.trackRecord)).toBe(
-            'In the walk-forward test at level 5, 60% of yearly returns landed within one typical swing of the forecast made at the time; ' +
-                'a forecast whose swing was judged right would manage about 68%.',
+            'In the walk-forward backtest at risk level 5, 60% of yearly returns landed within one standard deviation of the return forecast ' +
+                'at the time; if the volatility estimates were accurate, about 68% would.',
         )
     })
 

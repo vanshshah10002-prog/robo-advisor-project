@@ -5,8 +5,7 @@
  */
 import type { ConstructionSnapshot, Sleeve, Universe, UniverseBlock, UniverseFund } from '@/api/schemas'
 import { percent } from '@/lib/format'
-
-type SnapshotHolding = ConstructionSnapshot['holdings'][number]
+import { covarianceMatrix, marginal, variance } from '../covariance'
 
 export interface BlockRow {
     assetClass: string
@@ -31,17 +30,13 @@ export interface BlockRow {
  * Empty when the snapshot lacks a volatility or a correlation it needs.
  */
 export function riskShares(snapshot: ConstructionSnapshot): Map<string, number> {
-    const { holdings, correlation } = snapshot
-    const at = new Map(correlation.tickers.map((t, i) => [t, i]))
-    const usable = holdings.every((h) => h.volatility !== null && at.has(h.ticker))
-    if (!usable || holdings.length === 0) return new Map()
-    const corr = (a: SnapshotHolding, b: SnapshotHolding) => correlation.matrix[at.get(a.ticker) as number][at.get(b.ticker) as number]
-    const marginal = holdings.map((a) =>
-        holdings.reduce((sum, b) => sum + (a.volatility as number) * (b.volatility as number) * corr(a, b) * b.weight, 0),
-    )
-    const variance = holdings.reduce((sum, h, i) => sum + h.weight * marginal[i], 0)
-    if (variance <= 0) return new Map()
-    return new Map(holdings.map((h, i) => [h.ticker, (h.weight * marginal[i]) / variance]))
+    const cov = covarianceMatrix(snapshot)
+    if (!cov) return new Map()
+    const weights = snapshot.holdings.map((h) => h.weight)
+    const total = variance(cov, weights)
+    if (total <= 0) return new Map()
+    const each = marginal(cov, weights)
+    return new Map(snapshot.holdings.map((h, i) => [h.ticker, (weights[i] * each[i]) / total]))
 }
 
 function blockNote(block: UniverseBlock, passedOver: readonly string[]): string | null {
@@ -99,20 +94,20 @@ export function universeSentence(rows: readonly BlockRow[]): string {
 const shareWords = (v: number) => (v > 0 && v < 0.005 ? 'under 1%' : percent(v, 0))
 
 /**
- * "24% of the money but 51% of the risk", or "and" when the two round alike.
+ * "24% of the value but 51% of the risk", or "and" when the two round alike.
  * A hedge can have a share below zero: it lowers the risk, and says so.
  */
 function moneyAndRisk(r: { weight: number; riskShare: number }): string {
     const money = shareWords(r.weight)
-    if (r.riskShare < 0) return `${money} of the money, and it lowers the risk overall`
+    if (r.riskShare < 0) return `${money} of the value, and it lowers the risk overall`
     const risk = shareWords(r.riskShare)
-    return `${money} of the money ${money === risk ? 'and' : 'but'} ${risk} of the risk`
+    return `${money} of the value ${money === risk ? 'and' : 'but'} ${risk} of the risk`
 }
 
 /**
  * The holding that carries the most risk, then the one that carries least for
- * its size: "The biggest source of risk: US shares, 24% of the money but 51%
- * of the risk. Least for its size: Cash-like fund, 30% of the money but under
+ * its size: "The biggest source of risk: US shares, 24% of the value but 51%
+ * of the risk. Least for its size: Cash-like fund, 30% of the value but under
  * 1% of the risk."
  */
 export function riskSentence(rows: readonly BlockRow[]): string | null {

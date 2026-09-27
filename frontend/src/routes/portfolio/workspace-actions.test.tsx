@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { GLOSSARY } from '@/lib/glossary'
 import { useIdentity } from '@/store/session'
 import { renderApp, stubApi, warmPages, type Call, type Handler } from '@/test/app'
 import * as fx from '@/test/fixtures'
@@ -26,12 +27,12 @@ describe('the outlook', () => {
     const outlook = (routes: Record<string, Handler> = {}) =>
         workspace({ '/api/monte-carlo': fx.monteCarloReal, '/api/strategy/track-record': fx.trackRecord, ...routes })
 
-    it('projects what the portfolio is worth now, in today’s money, over ten years by default', async () => {
+    it('projects what the portfolio is worth now, adjusted for inflation, over ten years by default', async () => {
         const calls = outlook()
         renderApp('/portfolio/19/outlook')
 
         expect(await screen.findByRole('heading', { level: 1, name: /^In 15 years/ })).toHaveTextContent(
-            "In 15 years, in today's money, the middle outcome is £141,357; 8 in 10 simulated outcomes land between £99,505 and £206,015.",
+            'In 15 years, adjusted for inflation, the median projection is £141,357, with an 80% probability of ending between £99,505 and £206,015.',
         )
         expect(simulations(calls)[0]).toEqual({
             portfolio_id: 19,
@@ -41,7 +42,9 @@ describe('the outlook', () => {
             n_simulations: 2_000,
             real_terms: true,
         })
-        expect(screen.getByText('Chance of ending below what was paid in').closest('div')).toHaveTextContent('6%')
+        expect(screen.getByText('Probability of a loss').closest('div')).toHaveTextContent('6%Ending below the amount paid in')
+        expect(screen.getByText('Median value')).toHaveAccessibleDescription(GLOSSARY.median)
+        expect(screen.getByRole('radio', { name: 'Adjusted for inflation' })).toHaveAccessibleDescription(GLOSSARY.real)
         expect(screen.getByRole('figure', { name: 'What £124,518 could become' })).toHaveTextContent('4.4% a year')
         expect(document.title).toBe('Outlook · Portfolio 19 · UK Robo Advisor')
     })
@@ -62,9 +65,9 @@ describe('the outlook', () => {
         await screen.findByRole('heading', { level: 1, name: /^In 15 years/ })
 
         await user.type(screen.getByRole('textbox', { name: /A goal/ }), '200000')
-        await user.click(screen.getByRole('radio', { name: 'Pounds of the day' }))
+        await user.click(screen.getByRole('radio', { name: 'Not adjusted for inflation' }))
         await waitFor(() => expect(simulations(calls).at(-1)).toMatchObject({ goal_amount: 200_000, real_terms: false }))
-        expect(await screen.findByText('Chance of reaching £200,000')).toBeInTheDocument()
+        expect(await screen.findByText('Probability of reaching £200,000')).toBeInTheDocument()
     })
 
     it('keeps the last figures, and says so, while the horizon is not a usable number', async () => {
@@ -86,8 +89,8 @@ describe('the outlook', () => {
         const calls = outlook()
         renderApp('/portfolio/19/outlook')
 
-        expect(await screen.findByText('The chance of being worth less than was paid in falls from 37% after a year to 6% after 15 years.')).toBeInTheDocument()
-        expect(await screen.findByText(/60% of yearly returns landed within one typical swing/)).toBeInTheDocument()
+        expect(await screen.findByText('The probability of ending below the amount paid in falls from 37% after 1 year to 6% after 15 years.')).toBeInTheDocument()
+        expect(await screen.findByText(/60% of yearly returns landed within one standard deviation/)).toBeInTheDocument()
         expect(calls.find((c) => c.path === '/api/strategy/track-record')?.query.get('risk')).toBe('5')
     })
 

@@ -27,7 +27,7 @@ export function proposalSentence(preview: Preview, amount: number, monthly: numb
 /**
  * The simulation behind the projection: the preview's expected return and
  * volatility, the amounts it was built for, over the investor's horizon,
- * in today's money.
+ * adjusted for inflation.
  */
 export function projectionRequest(preview: Preview, built: PreviewRequest, horizonYears: number): MonteCarloRequest {
     return {

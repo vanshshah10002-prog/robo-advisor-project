@@ -372,7 +372,7 @@ At the end of the phase:
 
 | Issue | Where | When |
 |---|---|---|
-| VAPX.L (Asia-Pacific ex Japan) carries an estimated yearly swing of about 26% before calibration (30% after), well above the region's usual 15–20%, so it takes 3.5% of the risk for 1.4% of the money. It may be a price-data problem (it is quoted in dollars) | `backend/data`, the price cache | Investigate |
+| VAPX.L (Asia-Pacific ex Japan) carries an estimated volatility of about 26% before calibration (30% after), well above the region's usual 15–20%, so its risk contribution is 3.5% for 1.4% of the value. It may be a price-data problem (it is quoted in dollars) | `backend/data`, the price cache | Investigate |
 | Registry entries marked "Corrected Sep 2026 from knowledge of the LSE listing" should be checked against the issuers' factsheets. Two links were wrong; others may be | `backend/data/uk_etf_registry.json` | Data check |
 | The portfolio list fetches each portfolio's full history to draw its trend line: one request per row. Fine for a handful; with many portfolios, add a short trend to `/portfolios/user/{id}` or load it as rows scroll into view | `routes/portfolio/PortfoliosPage.tsx` | When lists grow |
 | An archived portfolio still accepts money and rebalances. Archiving only takes it off the list | `backend/api/routes` | If archived should mean closed |
@@ -404,7 +404,7 @@ Resolved in Phase 3:
 
 ## 10. After the overhaul
 
-The five phases are done. Worth doing next:
+The five phases are done, and section 13 covers the plain-terms pass after them. Worth doing next:
 - a screen-reader pass through the whole journey;
 - the VAPX.L and registry data checks above;
 - the Figma steps below, once there is an editor seat.
@@ -435,6 +435,91 @@ start the API (`make backend`) and record again:
 | `construction.json` | `snapshot_from_result(build_optimised_portfolio(7, 1.0), 7)` wrapped in `ConstructionResponse` (no local portfolio has one yet) |
 | `construction-legacy.json`, `history-legacy.json` | `GET /api/portfolio/19/construction`, `GET /api/portfolio/19/history` |
 | `universe.json` | `GET /api/universe?portfolio_id=19`, with SGLP.L's factsheet link cleared by hand after the registry fix |
-| `track-record.json` | `GET /api/strategy/track-record?risk=5` |
+| `track-record.json` | `GET /api/strategy/track-record?risk=5`; `benchmark_funds` was added by hand when the field was introduced, matching what the API now serves |
 | `monte-carlo.json` | `POST /api/monte-carlo` with £50,000, £250 a month, 15 years, 500 paths, `annual_return` 0.065, `annual_volatility` 0.089, `goal_amount` 150,000 and `real_terms: true`. The contract test checks that paid-in counts each payment at face value. |
 | `portfolios.json`, `risk-profile.json` | `GET /api/portfolios/user/1` (the first two rows; recorded again after `archived_at` was added), `GET /api/risk-profile/1` |
+
+## 13. Plain terms, explanations and portfolio statistics
+
+A pass after Phase 5, from review of the running app: some phrases were vague, the outlook spoke in
+"1 in 10" odds, the track record's comparison was unnamed, and the portfolio had no technical figures.
+
+### Terms
+
+| Before | After |
+|---|---|
+| Today's money / pounds of the day | Adjusted for inflation / not adjusted for inflation |
+| Middle outcome | Median (value, projection) |
+| 8 in 10 outcomes, middle half of outcomes | 80% probability range, 50% probability range |
+| Best 1 in 10 above … worst 1 in 10 below | 10% probability above … 10% probability below; 90th … 10th percentile in tables |
+| Chance of ending below what was paid in | Probability of a loss (ending below the amount paid in) |
+| Typical yearly swing (±) | Volatility (standard deviation of yearly returns) |
+| Share of the risk / of the money | Risk contribution / share of value |
+| Return since opening, return, time-weighted | Time-weighted return |
+| A year, on average; realised so far | Annualised return |
+| Worst fall from a high | Maximum drawdown |
+| On its cost / added to return | Return on cost / contribution to return (pp) |
+| Fund costs | Ongoing charges |
+| These rules / two-fund portfolio | This strategy (backtest) / Benchmark: 50% VWRL.L + 50% AGBP.L |
+
+- **Charges.** The outlook and proposal notes said "Before fund costs". The expected returns are
+  net of each fund's charge (deducted from the equilibrium prior; trailing prices are already net),
+  so they now say "After fund charges".
+- **Why "backtest", not "projected".** The track record is the construction run on past prices,
+  deciding each date with only what was known then. It is history simulated, not a projection, so
+  the line is "This strategy (backtest)". The projection is the outlook's fan.
+
+### Explanations on hover, tap and focus
+
+- `lib/glossary.ts` holds one definition per term, so a term means the same thing everywhere.
+- `ui/Term.tsx` underlines a term with dots. Hover, tap or Tab opens its explanation; Escape and
+  leaving close it. The explanation is the term's accessible description and is hidden from the
+  reading order, so it is announced once.
+- `ChoiceGroup` options take a `tip`, shown beside the option (so clicking it never picks it) and
+  read as the radio's description. The inflation choice uses it.
+- Tips are fixed to the screen and placed by `placeTip`: lined up with the term, below it or above
+  it in the lower part of the screen, never past an edge.
+- **Found in the screenshots.** The `.stagger` entrance animation (`animation: … both`) leaves a
+  transform on each section, which makes `position: fixed` measure from the section, not the
+  screen: tips opened 150px from their term. They are now rendered into `document.body` through a
+  portal, and `e2e/workspace.spec.ts` checks a tip opens beside its term, inside the screen, and
+  stays open under the pointer. The test fails without the portal.
+- Tips follow their term while the page scrolls or resizes, rather than closing: Tab scrolls an
+  off-screen term into view, which would otherwise shut the tip it had just opened.
+- Terms stay out of table headers. On a phone a stacked table hides its header row, so a focusable
+  term there would be a tab stop no one can see; the holding-gains terms are explained in the
+  paragraph above the table instead.
+
+### Portfolio statistics
+
+A column beside the holdings on the Overview (`routes/portfolio/overview`), stacking beneath them
+below 1000px. Each label is a `Term`.
+
+| Figure | How |
+|---|---|
+| Expected return | Σ wᵢμᵢ, the snapshot's net-of-charges estimates |
+| Volatility | √(w′Σw), Σ from the snapshot's volatilities (already ×1.15) and correlations |
+| Sharpe ratio | (expected return − risk-free) ÷ volatility, against the snapshot's rate |
+| Value at risk (95%, 1 year) | max(0, 1.645σ − μ), as a share and in pounds of today's value; normal returns, so it understates fat tails |
+| Diversification ratio | Σ wᵢσᵢ ÷ σₚ |
+| Effective number of holdings | 1 ÷ Σ wᵢ² |
+| Ongoing charges | Σ wᵢ × charge, and in pounds a year |
+| Time-weighted return, annualised return, maximum drawdown | From the ledger replay, as on Performance |
+| Realised volatility | Sample standard deviation of daily index returns × √252, from 20 returns (21 days of values) |
+
+- The weights are what each fund is worth today when every fund has a price, otherwise the
+  targets; the column says which. At the target weights the figures reproduce the snapshot's
+  stored ones (6.50%, 8.95%, 0.254 in the contract sample).
+- `routes/portfolio/covariance.ts` builds Σ once for these and for the Universe page's risk
+  contributions.
+- The track-record API now returns `benchmark_funds` (ticker, registry name, weight), from
+  `benchmark_mix` in `backend/eval/track_record.py`, which the backtest script also uses. The
+  names come from today's code while the series were built earlier, so a test checks that each
+  level's funds still match the committed artefact's label; rebuild the artefact if they part.
+
+### Tests
+
+At the end of this pass:
+- 615 unit tests, covering 99.7% of statements and 95.3% of branches;
+- 74 browser checks, axe clean in both themes;
+- 175 backend tests.

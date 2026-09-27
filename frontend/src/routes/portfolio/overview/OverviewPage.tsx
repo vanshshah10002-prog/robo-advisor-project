@@ -15,6 +15,7 @@ import { Tag } from '@/ui/Tag'
 import { sectionTitle, usePortfolio } from '../context'
 import { overviewSentence } from '../model'
 import styles from '../Portfolio.module.css'
+import { Statistics } from './Statistics'
 
 /** What it is worth, against what went in, and whether anything needs doing. */
 export default function OverviewPage() {
@@ -36,7 +37,12 @@ export default function OverviewPage() {
                 <UpdatePrices id={id} />
             </div>
             <Status id={id} performance={p} />
-            <Holdings performance={p} />
+            <div className={styles.besideHoldings}>
+                <div className={styles.section}>
+                    <Holdings performance={p} />
+                </div>
+                <Statistics id={id} performance={p} />
+            </div>
         </article>
     )
 }

@@ -1,5 +1,6 @@
 import { useTrackRecord } from '@/api/queries'
 import { level, nearestTested } from '@/lib/risk'
+import { Term } from '@/ui/Term'
 import { trackRecordSentence } from '../../landing/evidence'
 import { TrackRecordChart } from '../../TrackRecordChart'
 import styles from '../Portfolio.module.css'
@@ -16,11 +17,11 @@ export function TrackRecord({ risk }: { risk: number | null }) {
     return (
         <section className={styles.subsection} aria-labelledby="record-title">
             <h2 id="record-title" className={styles.sectionTitle}>
-                How these rules have done at level {tested}
+                This strategy’s backtest at risk level {tested}
             </h2>
             <p className={styles.note}>
-                Not this portfolio's history: the same construction rules run on past prices, deciding each date only with what was known
-                then.{risk !== tested && ` Level ${tested} is the nearest tested level to this portfolio's ${level(risk)}.`}{' '}
+                A <Term explain="backtest">backtest</Term>, not this portfolio's history: the same construction rules run on past prices, deciding
+                each date only with what was known then.{risk !== tested && ` Level ${tested} is the nearest tested level to this portfolio's ${level(risk)}.`}{' '}
                 {record.data && trackRecordSentence(record.data)}
             </p>
             <TrackRecordChart record={record} />

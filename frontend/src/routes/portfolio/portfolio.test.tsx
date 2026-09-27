@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { GLOSSARY } from '@/lib/glossary'
 import { useIdentity } from '@/store/session'
 import { renderApp, stubApi, warmPages } from '@/test/app'
 import * as fx from '@/test/fixtures'
@@ -42,6 +43,116 @@ describe('a portfolio', () => {
         expect(await screen.findByText('Vanguard FTSE All-World UCITS ETF (GBP) · VWRL.L')).toBeInTheDocument()
         expect(useIdentity.getState().lastPortfolioId).toBe(19)
         expect(document.title).toBe('Portfolio 19 · UK Robo Advisor')
+    })
+
+    it('lists its statistics beside the holdings, estimated and measured, each explained', async () => {
+        stubApi({
+            '/api/performance/19': fx.performance,
+            '/api/portfolio/19': fx.portfolioDetail,
+            '/api/portfolio/19/construction': { ...fx.construction, portfolio_id: 19 },
+            '/api/portfolio/19/history': {
+                ...fx.history,
+                points: [
+                    { date: '2025-06-30', value: 100_000, net_contributions: 100_000, cumulative_return: 0 },
+                    { date: '2026-09-25', value: 112_000, net_contributions: 100_000, cumulative_return: 0.12 },
+                ],
+                reason: null,
+            },
+        })
+        renderApp('/portfolio/19')
+
+        const stats = within(await screen.findByRole('complementary', { name: 'Portfolio statistics' }))
+        const row = (label: string) => stats.getByText(label).closest('div') as HTMLElement
+        expect(await stats.findByText('Expected return')).toHaveAccessibleDescription(GLOSSARY.expectedReturn)
+        expect(stats.getByText(/^At the target weights, as a fund has no price today; from the estimates of 26 Sept 2026\./)).toBeInTheDocument()
+        expect(row('Expected return')).toHaveTextContent('6.5% a year')
+        expect(row('Volatility')).toHaveTextContent('8.9% a year')
+        expect(row('Sharpe ratio')).toHaveTextContent('0.25Against 4.2% risk-free')
+        expect(row('Value at risk (95%, 1 year)')).toHaveTextContent('8.2%About £10,236 today')
+        expect(row('Diversification ratio')).toHaveTextContent('1.29')
+        expect(row('Effective number of holdings')).toHaveTextContent('3.8Of 8 funds')
+        expect(row('Ongoing charges')).toHaveTextContent('0.08% a yearAbout £104 a year')
+
+        expect(await stats.findByText('+12.0%')).toBeInTheDocument()
+        expect(row('Time-weighted return')).toHaveTextContent('+12.0%')
+        expect(row('Annualised return')).toHaveTextContent('+9.6% a year')
+        expect(row('Realised volatility')).toHaveTextContent('After 21 days of values')
+        expect(row('Maximum drawdown')).toHaveTextContent('None yet')
+    })
+
+    it('measures volatility once there are enough daily values, and marks what the estimates lack', async () => {
+        const snapshot = fx.construction.snapshot as NonNullable<typeof fx.construction.snapshot>
+        const days = Array.from({ length: 22 }, (_, i) => {
+            const cumulative = [0, 0.01, -0.005][i % 3] + i * 0.001
+            return { date: new Date(Date.UTC(2026, 7, 1 + i)).toISOString().slice(0, 10), value: 100_000 * (1 + cumulative), net_contributions: 100_000, cumulative_return: cumulative }
+        })
+        stubApi({
+            '/api/performance/19': fx.performance,
+            '/api/portfolio/19': fx.portfolioDetail,
+            '/api/portfolio/19/construction': {
+                ...fx.construction,
+                portfolio_id: 19,
+                snapshot: { ...snapshot, risk_free_rate: null, holdings: snapshot.holdings.map((h, i) => (i === 0 ? { ...h, expense_ratio: null } : h)) },
+            },
+            '/api/portfolio/19/history': { ...fx.history, points: days, reason: null },
+        })
+        renderApp('/portfolio/19')
+
+        const stats = within(await screen.findByRole('complementary', { name: 'Portfolio statistics' }))
+        const row = (label: string) => stats.getByText(label).closest('div') as HTMLElement
+        expect(await stats.findByText('Realised volatility')).toBeInTheDocument()
+        expect(row('Realised volatility')).toHaveTextContent(/\d+\.\d% a year$/)
+        expect(row('Annualised return')).toHaveTextContent('After a year of history')
+        expect(row('Maximum drawdown')).not.toHaveTextContent('None yet')
+        await stats.findByText('Sharpe ratio')
+        expect(row('Sharpe ratio')).toHaveTextContent(/—$/)
+        expect(row('Ongoing charges')).toHaveTextContent(/—$/)
+    })
+
+    it('says when a fund has no estimate to combine', async () => {
+        const snapshot = fx.construction.snapshot as NonNullable<typeof fx.construction.snapshot>
+        stubApi({
+            '/api/performance/19': fx.performance,
+            '/api/portfolio/19': fx.portfolioDetail,
+            '/api/portfolio/19/construction': {
+                ...fx.construction,
+                portfolio_id: 19,
+                snapshot: { ...snapshot, holdings: snapshot.holdings.map((h, i) => (i === 0 ? { ...h, volatility: null } : h)) },
+            },
+            '/api/portfolio/19/history': fx.history,
+        })
+        renderApp('/portfolio/19')
+
+        const stats = within(await screen.findByRole('complementary', { name: 'Portfolio statistics' }))
+        expect(await stats.findByText('A fund is missing an estimate, so these figures cannot be combined.')).toBeInTheDocument()
+    })
+
+    it('says why estimates are missing, and keeps the measured figures', async () => {
+        stubApi({
+            '/api/performance/19': fx.performance,
+            '/api/portfolio/19': fx.portfolioDetail,
+            '/api/portfolio/19/construction': { portfolio_id: 19, recorded: false, snapshot: null },
+            '/api/portfolio/19/history': { status: 500, body: { detail: 'Ledger busy.' } },
+        })
+        renderApp('/portfolio/19')
+
+        const stats = within(await screen.findByRole('complementary', { name: 'Portfolio statistics' }))
+        expect(await stats.findByText(/opened before its construction was recorded/)).toBeInTheDocument()
+        expect(await stats.findByText('The history did not load: Ledger busy.')).toBeInTheDocument()
+    })
+
+    it('says so when the estimates do not load', async () => {
+        stubApi({
+            '/api/performance/19': fx.performance,
+            '/api/portfolio/19': fx.portfolioDetail,
+            '/api/portfolio/19/construction': { status: 500, body: { detail: 'Database busy.' } },
+            '/api/portfolio/19/history': fx.history,
+        })
+        renderApp('/portfolio/19')
+
+        const stats = within(await screen.findByRole('complementary', { name: 'Portfolio statistics' }))
+        expect(await stats.findByText('The estimates did not load: Database busy.')).toBeInTheDocument()
+        expect(await stats.findByText(fx.history.reason as string)).toBeInTheDocument()
     })
 
     it('says when a rebalance is due and which funds have no price', async () => {

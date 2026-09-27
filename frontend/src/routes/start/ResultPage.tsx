@@ -14,6 +14,7 @@ import { Button, ButtonLink } from '@/ui/Button'
 import { Notice } from '@/ui/Notice'
 import { Delta, Stat, StatGroup } from '@/ui/Stat'
 import { Provenance } from '@/ui/Tag'
+import { Term } from '@/ui/Term'
 import styles from './Result.module.css'
 
 /** Amount used to preview the mix when none was given; the split does not depend on it. */
@@ -119,7 +120,7 @@ function WorstFall({ assessed, tested, amount }: { assessed: number; tested: num
                 How far level {tested} has fallen before <Provenance kind="simulated" />
             </h2>
             <StatGroup>
-                <Stat label="Worst fall from a high point" value={<Delta value={strategy.max_drawdown} />} detail={amount ? `About ${money(amount * strategy.max_drawdown)} on ${money(amount)}` : undefined} />
+                <Stat label={<Term explain="maxDrawdown">Maximum drawdown</Term>} value={<Delta value={strategy.max_drawdown} />} detail={amount ? `About ${money(amount * strategy.max_drawdown)} on ${money(amount)}` : undefined} />
                 {worstYear && <Stat label={`Worst calendar year, ${worstYear.year}`} value={<Delta value={worstYear.strategy} />} />}
             </StatGroup>
             <p className={styles.explain}>

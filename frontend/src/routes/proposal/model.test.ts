@@ -22,7 +22,7 @@ describe('proposalSentence', () => {
 })
 
 describe('projectionRequest', () => {
-    it('simulates the built amounts from the preview, in today’s money', () => {
+    it('simulates the built amounts from the preview, adjusted for inflation', () => {
         expect(projectionRequest(preview, built, 15)).toEqual({
             annual_return: preview.expected_annual_return,
             annual_volatility: preview.expected_volatility,

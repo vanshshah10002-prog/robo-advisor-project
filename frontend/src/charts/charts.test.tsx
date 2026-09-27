@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { GLOSSARY } from '@/lib/glossary'
 import { AllocationBar } from './AllocationBar'
 import { ChartFrame } from './ChartFrame'
 import { DriftBars } from './DriftBars'
@@ -170,10 +171,12 @@ const fan: FanData = {
 }
 
 describe('FanChart', () => {
-    it('describes the final spread in its accessible name', () => {
+    it('describes the final spread in its accessible name, in probabilities', () => {
         render(<FanChart title="Projection" data={fan} goal={120} />)
         expect(
-            screen.getByRole('img', { name: /By 3 yrs the middle outcome is £116; 1 in 10 outcomes end below £101 and 1 in 10 above £138/ }),
+            screen.getByRole('img', {
+                name: /By 3 yrs the median is £116; there is a 10% probability of ending below £101 and a 10% probability of ending above £138/,
+            }),
         ).toBeInTheDocument()
         expect(screen.getByText('Goal £120')).toBeInTheDocument()
         expect(screen.getByText('simulated')).toBeInTheDocument()
@@ -184,8 +187,8 @@ describe('FanChart', () => {
         const { container } = render(<FanChart title="Projection" data={fan} startYear={2026} />)
         await focus(screen.getByRole('img'))
         expect(announced(container)).toBe(
-            '2029, year 3. Best 1 in 10 above £138. Best 1 in 4 above £125. Middle outcome £116. ' +
-                'Worst 1 in 4 below £108. Worst 1 in 10 below £101. Paid in £100',
+            '2029, year 3. 10% probability above £138. 25% probability above £125. Median £116. ' +
+                '25% probability below £108. 10% probability below £101. Paid in £100',
         )
         await user.keyboard('{ArrowLeft}')
         expect(announced(container)).toMatch(/^2028, year 2\./)
@@ -219,6 +222,25 @@ describe('FanChart', () => {
         expect(within(table).getAllByRole('row')).toHaveLength(5)
         expect(within(table).getByRole('rowheader', { name: 'Year 2' })).toBeInTheDocument()
         expect(within(table).getByRole('columnheader', { name: 'Paid in' })).toBeInTheDocument()
+        expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+            'Year',
+            '10th percentile',
+            '25th percentile',
+            'Median',
+            '75th percentile',
+            '90th percentile',
+            'Paid in',
+        ])
+    })
+
+    it('keys the median and both probability ranges, each explained on hover', async () => {
+        const user = userEvent.setup()
+        render(<FanChart title="Projection" data={fan} />)
+        const legend = within(screen.getByRole('list'))
+        for (const key of ['Median', '50% probability range', '80% probability range', 'Paid in']) expect(legend.getByText(key)).toBeInTheDocument()
+        expect(legend.getAllByRole('listitem')).toHaveLength(4)
+        await user.hover(screen.getByText('80% probability range'))
+        expect(screen.getByText(GLOSSARY.range80)).toBeVisible()
     })
 
     it('needs at least two years to draw', () => {
@@ -344,7 +366,7 @@ describe('a live cursor when a refetch shortens the data', () => {
         }
         rerender(<FanChart title="Projection" data={shorter} startYear={2026} />)
         expect(announced(container)).toBe(
-            '2027, year 1. Best 1 in 10 above £115. Best 1 in 4 above £109. Middle outcome £105. Worst 1 in 4 below £101. Worst 1 in 10 below £95',
+            '2027, year 1. 10% probability above £115. 25% probability above £109. Median £105. 25% probability below £101. 10% probability below £95',
         )
         expect(container.innerHTML).not.toMatch(/NaN|undefined/)
     })

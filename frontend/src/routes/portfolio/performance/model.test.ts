@@ -140,9 +140,9 @@ describe('performanceSentence', () => {
         )
     })
 
-    it('reads the return and the worst fall', () => {
+    it('reads the time-weighted return and the maximum drawdown', () => {
         expect(performanceSentence(history(points))).toBe(
-            'Since it opened on 2 Jan 2026, it has returned +12.0% and is worth £112,000 against £100,000 paid in. Its worst fall from a high was 10.0%.',
+            'Since it opened on 2 Jan 2026, it has a time-weighted return of +12.0% and is worth £112,000 against £100,000 paid in. Its maximum drawdown was 10.0%.',
         )
     })
 

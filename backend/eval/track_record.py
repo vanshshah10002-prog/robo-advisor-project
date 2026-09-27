@@ -9,13 +9,18 @@ calendar-year returns, headline metrics, and forecast-vs-realised accuracy.
 Pure: takes BacktestResult objects, returns plain dicts.
 """
 
+from typing import TypedDict
+
 import numpy as np
 import pandas as pd
 
+from backend.config import BENCHMARK_TICKER
+from backend.engine.asset_universe import get_etf_by_ticker
 from backend.eval.backtest_metrics import accuracy_summary, forecast_periods, performance_summary
 from backend.eval.walkforward_backtest import BacktestResult
 
 SERIES_STEP_DAYS = 5          # one point per trading week
+BOND_BENCHMARK_TICKER = "AGBP.L"   # iShares Core Global Aggregate Bond, hedged to pounds
 
 NOTES = [
     "Simulated, not this portfolio's own history: the same construction rules run on real London "
@@ -26,6 +31,31 @@ NOTES = [
     "The fund list and costs were chosen in 2026 from funds that exist today, which flatters the past a little.",
     "Past performance, simulated or real, is not a reliable guide to future returns.",
 ]
+
+
+def benchmark_weights(growth: float) -> dict[str, float]:
+    """World shares for `growth`, hedged global bonds for the rest; a fund at 0% is left out."""
+    weights = {BENCHMARK_TICKER: round(growth, 4), BOND_BENCHMARK_TICKER: round(1 - growth, 4)}
+    return {ticker: w for ticker, w in weights.items() if w > 0}
+
+
+def benchmark_mix(risk: int) -> dict[str, float]:
+    """The comparison at a risk level: the same growth share as the policy, 10% per level."""
+    return benchmark_weights(min(1.0, 0.1 * risk))
+
+
+class BenchmarkFund(TypedDict):
+    ticker: str
+    name: str
+    weight: float
+
+
+def benchmark_funds(risk: int) -> list[BenchmarkFund]:
+    """The comparison's funds with their registry names, shares before bonds."""
+    return [
+        {"ticker": ticker, "name": (get_etf_by_ticker(ticker) or {}).get("name", ticker), "weight": weight}
+        for ticker, weight in benchmark_mix(risk).items()
+    ]
 
 
 def _summary(result: BacktestResult) -> dict:

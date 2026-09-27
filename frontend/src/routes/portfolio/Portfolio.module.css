@@ -145,6 +145,21 @@
     gap: var(--space-4);
 }
 
+/* The holdings with a column of statistics beside them, which moves beneath
+   them once the page is too narrow for both. */
+.besideHoldings {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    align-items: start;
+    gap: var(--space-10) var(--space-8);
+}
+
+@media (max-width: 1000px) {
+    .besideHoldings {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .note {
     max-width: var(--measure);
     font-size: var(--fs-sm);

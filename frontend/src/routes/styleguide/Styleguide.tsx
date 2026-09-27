@@ -10,6 +10,7 @@ import { Button } from '@/ui/Button'
 import { Field, TextInput } from '@/ui/Field'
 import { Delta, Stat, StatGroup } from '@/ui/Stat'
 import { Provenance, Tag } from '@/ui/Tag'
+import { Term } from '@/ui/Term'
 import {
     SPECIMEN_BAND,
     SPECIMEN_DRIFT,
@@ -174,7 +175,7 @@ function Charts() {
             />
             <FanChart
                 title="Your money, fifteen years on"
-                summary="£50,000 now and £250 a month. The bands hold 8 in 10, and half, of all simulated outcomes."
+                summary="£50,000 now and £250 a month. The shaded bands are the 50% and 80% probability ranges of the simulated outcomes."
                 data={fan}
                 goal={150_000}
                 startYear={2026}
@@ -182,12 +183,12 @@ function Charts() {
             />
             <LineChart
                 title="£10,000 over five years"
-                summary="The strategy against a two-fund benchmark of the same risk, rebalanced the same way."
+                summary="The strategy against a benchmark of 50% VWRL.L and 50% AGBP.L, rebalanced the same way."
                 provenance="measured"
                 dates={track.dates}
                 series={[
-                    { key: 'strategy', label: 'Strategy', colour: CATEGORICAL[0], values: track.strategy },
-                    { key: 'benchmark', label: 'Two-fund benchmark', colour: CATEGORICAL[1], values: track.benchmark },
+                    { key: 'strategy', label: 'This strategy', colour: CATEGORICAL[0], values: track.strategy },
+                    { key: 'benchmark', label: 'Benchmark: 50% VWRL.L + 50% AGBP.L', colour: CATEGORICAL[1], values: track.benchmark },
                 ]}
                 baseline={{ value: 10_000, label: '£10,000 invested' }}
                 format={(v) => money(v)}
@@ -307,11 +308,11 @@ export default function Styleguide() {
                 <StatementTable />
             </Section>
 
-            <Section id="sg-stats" title="Headline figures" intro="The one number that matters is large; everything else steps down. Figures here are illustrative.">
+            <Section id="sg-stats" title="Headline figures" intro="The one number that matters is large; everything else steps down. A technical term is underlined with dots: hover, tap or tab to it for its meaning. Figures here are illustrative.">
                 <StatGroup className={styles.stats}>
                     <Stat size="lg" label="Portfolio value" provenance="measured" value={money(SPECIMEN_TOTAL)} detail={<><Delta value={0.245} /> since you started</>} />
-                    <Stat label="In 15 years, middle outcome" provenance="simulated" value={money(238_400)} detail="1 in 10 below £161k · 1 in 10 above £352k" />
-                    <Stat label="Expected return" provenance="estimated" value={percent(0.048)} detail="a year, before inflation" />
+                    <Stat label={<>In 15 years, <Term explain="median">median</Term></>} provenance="simulated" value={money(238_400)} detail="80% probability between £161k and £352k" />
+                    <Stat label={<Term explain="expectedReturn">Expected return</Term>} provenance="estimated" value={percent(0.048)} detail="a year, before inflation" />
                 </StatGroup>
             </Section>
 

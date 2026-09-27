@@ -56,6 +56,8 @@ for (const theme of ['light', 'dark'] as const) {
 
         for (const [name, path, heading] of PAGES) {
             test(`${name} meets WCAG 2.2 AA`, async ({ page }) => {
+                // The heading alone may wait 30s for a cold compile, so the scan needs time beyond it.
+                test.setTimeout(60_000)
                 const errors = collectErrors(page)
                 await stubEverything(page)
                 await returningBrowser(page, ID)

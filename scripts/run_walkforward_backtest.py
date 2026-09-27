@@ -27,12 +27,12 @@ from backend.eval.backtest_data import download_panel, gbp_prices, load_panel, s
 from backend.eval.backtest_metrics import (  # noqa: E402
     accuracy_summary, asset_forecast_periods, forecast_periods, performance_summary,
 )
+from backend.eval.track_record import BOND_BENCHMARK_TICKER as BOND_BENCHMARK, benchmark_mix, benchmark_weights  # noqa: E402
 from backend.eval.walkforward_backtest import (  # noqa: E402
     SimConfig, decide_policy_portfolio, fixed_mix_decider, memoised, run_backtest,
 )
 
 logger = logging.getLogger("walkforward")
-BOND_BENCHMARK = "AGBP.L"
 SNAPSHOT_DIR = os.path.join(ROOT, "backend", "data", "backtest_snapshot")
 OUT_DIR = os.path.join(ROOT, "reports", "walkforward")
 
@@ -71,14 +71,13 @@ def benchmark_deciders(risks: list[int]) -> dict[str, tuple]:
     """label -> (decider, matched risk or None). Two-fund mixes of VWRL (equity) and AGBP (hedged bonds)."""
     ac = {BENCHMARK_TICKER: "global_equity", BOND_BENCHMARK: "global_bonds"}
 
-    def mix(g: float):
-        w = {BENCHMARK_TICKER: round(g, 4), BOND_BENCHMARK: round(1 - g, 4)}
-        return fixed_mix_decider({k: v for k, v in w.items() if v > 0}, ac)
-
-    out = {"VWRL 100%": (mix(1.0), None), "VWRL/AGBP 60/40": (mix(0.6), None)}
+    out = {
+        "VWRL 100%": (fixed_mix_decider(benchmark_weights(1.0), ac), None),
+        "VWRL/AGBP 60/40": (fixed_mix_decider(benchmark_weights(0.6), ac), None),
+    }
     for r in risks:
         g = min(1.0, 0.1 * r)
-        out[f"Two-fund {g:.0%}/{1 - g:.0%} (risk {r})"] = (mix(g), r)
+        out[f"Two-fund {g:.0%}/{1 - g:.0%} (risk {r})"] = (fixed_mix_decider(benchmark_mix(r), ac), r)
     return out
 
 

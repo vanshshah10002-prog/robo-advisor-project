@@ -3,6 +3,7 @@ import { area, curveMonotoneX, line } from 'd3-shape'
 import type { ReactNode } from 'react'
 import { money, moneyCompact } from '@/lib/format'
 import { CHART_INK } from '@/lib/palette'
+import { Term } from '@/ui/Term'
 import { Crosshair, EndLabels, HitArea, XAxis, YGrid, type EndLabel } from './Axes'
 import { ChartFrame } from './ChartFrame'
 import { DataTable, type Column } from './DataTable'
@@ -39,13 +40,17 @@ export interface FanChartProps {
 type Percentile = 'p90' | 'p75' | 'p50' | 'p25' | 'p10'
 type Linear = ScaleLinear<number, number>
 
-/** Top to bottom, as they stack on the chart; each keyed to the band whose edge it is. */
-const PERCENTILES: readonly { key: Percentile; label: string; colour: string; mark: Mark }[] = [
-    { key: 'p90', label: 'Best 1 in 10 above', colour: CHART_INK.bandOuter, mark: 'band' },
-    { key: 'p75', label: 'Best 1 in 4 above', colour: CHART_INK.bandInner, mark: 'band' },
-    { key: 'p50', label: 'Middle outcome', colour: CHART_INK.median, mark: 'line' },
-    { key: 'p25', label: 'Worst 1 in 4 below', colour: CHART_INK.bandInner, mark: 'band' },
-    { key: 'p10', label: 'Worst 1 in 10 below', colour: CHART_INK.bandOuter, mark: 'band' },
+/**
+ * Top to bottom, as they stack on the chart; each keyed to the band whose
+ * edge it is. `reading` is the probability of ending beyond that edge, for
+ * the readout; `column` is the percentile's name, for the table.
+ */
+const PERCENTILES: readonly { key: Percentile; reading: string; column: string; colour: string; mark: Mark }[] = [
+    { key: 'p90', reading: '10% probability above', column: '90th percentile', colour: CHART_INK.bandOuter, mark: 'band' },
+    { key: 'p75', reading: '25% probability above', column: '75th percentile', colour: CHART_INK.bandInner, mark: 'band' },
+    { key: 'p50', reading: 'Median', column: 'Median', colour: CHART_INK.median, mark: 'line' },
+    { key: 'p25', reading: '25% probability below', column: '25th percentile', colour: CHART_INK.bandInner, mark: 'band' },
+    { key: 'p10', reading: '10% probability below', column: '10th percentile', colour: CHART_INK.bandOuter, mark: 'band' },
 ]
 
 const DEFAULT_HEIGHT = 320
@@ -74,8 +79,9 @@ function yearNames(startYear?: number): YearNames {
 }
 
 /**
- * The future as a range: the middle 80% and middle 50% of simulated outcomes
- * as nested bands, the median as the one line, and what was paid in beneath.
+ * The future as a range: the 80% and 50% probability ranges of the simulated
+ * outcomes as nested bands, the median as the one line, and what was paid in
+ * beneath.
  */
 export function FanChart({ data, title, summary, notes, pending, goal, startYear, height = DEFAULT_HEIGHT }: FanChartProps) {
     const years = yearNames(startYear)
@@ -179,7 +185,7 @@ function FanMarks({ data, x, y, goal, width }: { data: FanData; x: Linear; y: Li
 function fanRows(data: FanData, i: number): TooltipRow[] {
     const rows: TooltipRow[] = PERCENTILES.map((p) => ({
         key: p.key,
-        label: p.label,
+        label: p.reading,
         value: money(data[p.key][i]),
         colour: p.colour,
         mark: p.mark,
@@ -189,9 +195,9 @@ function fanRows(data: FanData, i: number): TooltipRow[] {
 
 function fanLegend(hasPaidIn: boolean): LegendItem[] {
     const items: LegendItem[] = [
-        { key: 'p50', label: 'Middle outcome', colour: CHART_INK.median, mark: 'line' },
-        { key: 'inner', label: 'Middle half of outcomes', colour: CHART_INK.bandInner, mark: 'band' },
-        { key: 'outer', label: '8 in 10 outcomes', colour: CHART_INK.bandOuter, mark: 'band' },
+        { key: 'p50', label: <Term explain="median">Median</Term>, colour: CHART_INK.median, mark: 'line' },
+        { key: 'inner', label: <Term explain="range50">50% probability range</Term>, colour: CHART_INK.bandInner, mark: 'band' },
+        { key: 'outer', label: <Term explain="range80">80% probability range</Term>, colour: CHART_INK.bandOuter, mark: 'band' },
     ]
     return hasPaidIn ? [...items, { key: 'paid', label: 'Paid in', colour: PAID_IN, mark: 'dash' }] : items
 }
@@ -208,8 +214,8 @@ function fanEnds(data: FanData, y: Linear): EndLabel[] {
 function fanLabel(title: string, data: FanData, yearLabel: (y: number) => string): string {
     const last = data.years.length - 1
     return (
-        `${title}. By ${yearLabel(data.years[last])} the middle outcome is ${money(data.p50[last])}; ` +
-        `1 in 10 outcomes end below ${money(data.p10[last])} and 1 in 10 above ${money(data.p90[last])}. ` +
+        `${title}. By ${yearLabel(data.years[last])} the median is ${money(data.p50[last])}; there is a 10% probability of ending ` +
+        `below ${money(data.p10[last])} and a 10% probability of ending above ${money(data.p90[last])}. ` +
         'Use the arrow keys to read each year, or switch to the table.'
     )
 }
@@ -218,11 +224,7 @@ function FanTable({ data, title, yearTitle }: { data: FanData; title: string; ye
     const cell = (k: Percentile) => (i: number) => money(data[k][i])
     const columns: Column<number>[] = [
         { key: 'year', label: 'Year', render: (i) => yearTitle(data.years[i]) },
-        { key: 'p10', label: 'Worst 1 in 10', numeric: true, render: cell('p10') },
-        { key: 'p25', label: 'Worst 1 in 4', numeric: true, render: cell('p25') },
-        { key: 'p50', label: 'Middle', numeric: true, render: cell('p50') },
-        { key: 'p75', label: 'Best 1 in 4', numeric: true, render: cell('p75') },
-        { key: 'p90', label: 'Best 1 in 10', numeric: true, render: cell('p90') },
+        ...[...PERCENTILES].reverse().map((p) => ({ key: p.key, label: p.column, numeric: true, render: cell(p.key) })),
         ...(data.paidIn ? [{ key: 'paid', label: 'Paid in', numeric: true, render: (i: number) => money(data.paidIn?.[i]) }] : []),
     ]
     return <DataTable caption={title} columns={columns} rows={data.years.map((_, i) => i)} rowKey={(i) => i} />

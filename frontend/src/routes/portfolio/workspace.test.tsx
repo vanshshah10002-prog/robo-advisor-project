@@ -1,6 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { GLOSSARY } from '@/lib/glossary'
 import { renderApp, stubApi, warmPages, type Handler } from '@/test/app'
 import * as fx from '@/test/fixtures'
 
@@ -98,21 +99,25 @@ describe('the overview', () => {
     })
 })
 
+/** A headline figure by its label: the label's `<dt>` and value together, apart from a table header of the same name. */
+const stat = (label: string) => screen.getAllByText(label).find((el) => el.closest('dt'))?.closest('div') as HTMLElement
+
 describe('performance', () => {
     const open = () => {
         workspace({ '/api/portfolio/19/history': history, '/api/strategy/track-record': fx.trackRecord })
         renderApp('/portfolio/19/performance')
     }
 
-    it('opens with the return and the worst fall, measured from the ledger', async () => {
+    it('opens with the time-weighted return and the maximum drawdown, measured from the ledger', async () => {
         open()
         expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
-            'Since it opened on 30 Jun 2025, it has returned +12.0% and is worth £112,000 against £100,000 paid in. Its worst fall from a high was 2.9%.',
+            'Since it opened on 30 Jun 2025, it has a time-weighted return of +12.0% and is worth £112,000 against £100,000 paid in. Its maximum drawdown was 2.9%.',
         )
-        expect(screen.getByText('Return since opening').closest('div')).toHaveTextContent('+12.0%')
-        expect(screen.getByText('Worst fall from a high').closest('div')).toHaveTextContent('Lowest on 31 Dec 2025')
-        expect(screen.getByText('Expected when opened').closest('div')).toHaveTextContent('4.4% a year')
-        expect(screen.getByText('Expected when opened').closest('div')).toHaveTextContent('Realised so far: +9.6% a year')
+        expect(stat('Time-weighted return')).toHaveTextContent('+12.0%')
+        expect(within(stat('Time-weighted return')).getByText('Time-weighted return')).toHaveAccessibleDescription(GLOSSARY.timeWeightedReturn)
+        expect(stat('Maximum drawdown')).toHaveTextContent('Low point on 31 Dec 2025')
+        expect(stat('Expected return')).toHaveTextContent('4.4% a year')
+        expect(stat('Expected return')).toHaveTextContent('Annualised return so far: +9.6% a year')
     })
 
     it('reads the return over every period it has been open, and a yearly average', async () => {
@@ -128,7 +133,7 @@ describe('performance', () => {
             'This year+10.9%',
             '1 year+7.7%',
             'Since opening+12.0%',
-            'A year, on average+9.6%',
+            'Annualised+9.6%',
         ])
     })
 
@@ -139,7 +144,7 @@ describe('performance', () => {
         expect(screen.getByRole('figure', { name: 'Value and money paid in' })).toHaveTextContent(
             'Over the last 1 month, the value went from £106,920 to £112,000.',
         )
-        expect(screen.getByRole('figure', { name: 'How far below its high' })).toBeInTheDocument()
+        expect(screen.getByRole('figure', { name: 'Drawdown from the previous high' })).toBeInTheDocument()
     })
 
     it('shows the gain on each holding and the simulated record at its level', async () => {
@@ -147,8 +152,11 @@ describe('performance', () => {
         const gains = await screen.findByRole('table', { name: 'Gain or loss by holding' })
         expect(within(gains).getByRole('rowheader', { name: /VWRL\.L/ })).toBeInTheDocument()
         expect(within(gains).getAllByRole('row').at(-1)).toHaveTextContent(/All holdings.*£62,240.*£40,000.*\+£22,240/)
-        expect(screen.getByRole('heading', { level: 2, name: 'How these rules have done at level 5' })).toBeInTheDocument()
-        expect(screen.getByText(/Not this portfolio's history/)).toBeInTheDocument()
+        expect(within(gains).getByRole('columnheader', { name: 'Return on cost' })).toBeInTheDocument()
+        expect(within(gains).getByRole('columnheader', { name: 'Contribution to return' })).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 2, name: 'This strategy’s backtest at risk level 5' })).toBeInTheDocument()
+        expect(screen.getByText(/, not this portfolio's history/)).toBeInTheDocument()
+        expect(screen.getByText('backtest')).toHaveAccessibleDescription(GLOSSARY.backtest)
     })
 
     it('explains an empty history instead of drawing one', async () => {
@@ -157,7 +165,7 @@ describe('performance', () => {
 
         expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(fx.history.reason as string)
         expect(screen.getByText('The charts start once two days of values are recorded.')).toBeInTheDocument()
-        expect(screen.getByText('Worst fall from a high').closest('div')).toHaveTextContent('None yet')
+        expect(stat('Maximum drawdown')).toHaveTextContent('None yet')
         expect(screen.queryByRole('radiogroup', { name: 'Period' })).not.toBeInTheDocument()
     })
 
@@ -196,7 +204,8 @@ describe('the asset universe', () => {
 
         const cash = (await screen.findByRole('heading', { level: 3, name: 'Cash-like fund' })).closest('li') as HTMLElement
         expect(cash).toHaveTextContent('15.0%')
-        expect(cash).toHaveTextContent(/Typical yearly swing±0\.6%/)
+        expect(within(cash).getByText('Volatility').closest('div')).toHaveTextContent(/0\.6% a year$/)
+        expect(within(cash).getByText('Risk contribution')).toHaveAccessibleDescription(GLOSSARY.riskContribution)
         expect(cash).toHaveTextContent('ERNS.L · IE00BCRY6557 · 0.06% a year')
         expect(cash).toHaveTextContent('CSH2.L, the first choice, had too little usable price history when the portfolio was built, so ERNS.L is held instead.')
         const factsheet = within(cash).getAllByRole('link', { name: /Factsheet/ })[0]
@@ -227,7 +236,7 @@ describe('the asset universe', () => {
         renderApp('/portfolio/19/universe')
 
         const risk = await screen.findByRole('figure', { name: 'Where the risk comes from' })
-        expect(risk).toHaveTextContent('The biggest source of risk: US shares, 45% of the money but 71% of the risk.')
+        expect(risk).toHaveTextContent('The biggest source of risk: US shares, 45% of the value but 71% of the risk.')
         expect(risk).toHaveTextContent('Volatilities include a 1.15× allowance')
         expect(
             screen.getByRole('img', {

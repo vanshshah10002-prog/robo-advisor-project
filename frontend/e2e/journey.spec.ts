@@ -30,6 +30,7 @@ async function stubApi(page: Page) {
         [`GET /api/performance/${OPENED_ID}`]: () => ({ ...fx.performance, portfolio_id: OPENED_ID }),
         [`GET /api/portfolio/${OPENED_ID}`]: () => ({ ...fx.portfolioDetail, portfolio_id: OPENED_ID }),
         [`GET /api/portfolio/${OPENED_ID}/history`]: () => ({ ...fx.history, portfolio_id: OPENED_ID }),
+        [`GET /api/portfolio/${OPENED_ID}/construction`]: () => ({ ...fx.construction, portfolio_id: OPENED_ID }),
         'GET /api/portfolios/user/4': () => [{ ...fx.portfolioSummary, portfolio_id: OPENED_ID }],
         'GET /api/portfolios/user/4/archived': () => [],
         'GET /api/asset-classes': () => [fx.assetClass],
@@ -55,7 +56,7 @@ test('from the front page to an opened portfolio', async ({ page }) => {
     const opened = await stubApi(page)
 
     await page.goto('/')
-    await expect(page.getByText(/^At level 5, £100,000 run through these rules/)).toBeVisible()
+    await expect(page.getByText(/^In the backtest at risk level 5, £100,000 invested/)).toBeVisible()
     await noSidewaysScroll(page)
     await page.getByRole('main').getByRole('link', { name: 'Build a portfolio' }).click()
 

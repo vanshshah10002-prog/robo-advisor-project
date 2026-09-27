@@ -27,6 +27,7 @@ from backend.db.database import get_db
 from backend.db.models import Holding, Portfolio, Transaction
 from backend.engine.history import Trade, replay
 from backend.engine.universe_view import build_universe
+from backend.eval.track_record import benchmark_funds
 
 router = APIRouter()
 
@@ -122,9 +123,10 @@ def load_track_record() -> Optional[dict]:
 async def get_track_record(risk: int = Query(..., ge=1, le=10)):
     """
     How this construction would have done over the last five years at the given
-    risk level, against a two-fund portfolio with the same share in shares.
-    A simulation on real prices with no look-ahead — not this portfolio's own
-    history. Built by scripts/build_track_record.py.
+    risk level, against a two-fund portfolio with the same share in shares,
+    whose funds `benchmark_funds` names with their weights. A simulation on
+    real prices with no look-ahead — not this portfolio's own history. Built
+    by scripts/build_track_record.py.
     """
     data = load_track_record()
     if data is None:
@@ -133,7 +135,7 @@ async def get_track_record(risk: int = Query(..., ge=1, le=10)):
     if entry is None:
         raise HTTPException(status_code=404, detail=f"No track record for risk {risk}")
     return TrackRecordResponse(
-        risk=risk, **entry,
+        risk=risk, benchmark_funds=benchmark_funds(risk), **entry,
         notes=data["notes"], generated_at=data["generated_at"],
         prices_downloaded_at=data.get("prices_downloaded_at"),
         start=data["start"], end=data["end"], initial=data["initial"],

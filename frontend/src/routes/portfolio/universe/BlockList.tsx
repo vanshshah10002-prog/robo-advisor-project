@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import type { UniverseFund } from '@/api/schemas'
 import { EMPTY, moneyCompact, percent } from '@/lib/format'
+import { Term } from '@/ui/Term'
 import styles from './Universe.module.css'
 import type { BlockRow } from './model'
 
@@ -60,15 +61,15 @@ function Block({ row }: { row: BlockRow }) {
 
 function Figures({ row }: { row: BlockRow }) {
     const figures = [
-        ['Target', percent(row.target)],
-        ['Expected return', row.expectedReturn === null ? EMPTY : `${percent(row.expectedReturn)} a year`],
-        ['Typical yearly swing', row.volatility === null ? EMPTY : `±${percent(row.volatility)}`],
-        ['Share of the risk', row.riskShare === null ? EMPTY : percent(row.riskShare)],
+        ['target', 'Target weight', percent(row.target)],
+        ['return', <Term explain="expectedReturn">Expected return</Term>, row.expectedReturn === null ? EMPTY : `${percent(row.expectedReturn)} a year`],
+        ['volatility', <Term explain="volatility">Volatility</Term>, row.volatility === null ? EMPTY : `${percent(row.volatility)} a year`],
+        ['risk', <Term explain="riskContribution">Risk contribution</Term>, row.riskShare === null ? EMPTY : percent(row.riskShare)],
     ] as const
     return (
         <dl className={styles.figures}>
-            {figures.map(([label, value]) => (
-                <div key={label}>
+            {figures.map(([key, label, value]) => (
+                <div key={key}>
                     <dt>{label}</dt>
                     <dd>{value}</dd>
                 </div>

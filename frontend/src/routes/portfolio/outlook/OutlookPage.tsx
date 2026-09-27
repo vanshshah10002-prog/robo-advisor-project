@@ -4,6 +4,7 @@ import { useTrackRecord } from '@/api/queries'
 import type { MonteCarlo, Performance, PortfolioDetail } from '@/api/schemas'
 import { FanChart } from '@/charts'
 import { money, percent } from '@/lib/format'
+import { GLOSSARY } from '@/lib/glossary'
 import { parseWhole } from '@/lib/parse'
 import { nearestTested } from '@/lib/risk'
 import { usePageTitle } from '@/lib/usePageTitle'
@@ -13,14 +14,15 @@ import { Field, TextInput } from '@/ui/Field'
 import { MoneyField } from '@/ui/MoneyField'
 import { Notice } from '@/ui/Notice'
 import { Stat, StatGroup } from '@/ui/Stat'
+import { Term } from '@/ui/Term'
 import { sectionTitle, usePortfolio } from '../context'
 import styles from '../Portfolio.module.css'
 import { accuracyNote, lossSentence, MAX_YEARS, OUTLOOK_PATHS, outlookSentence, validYears, type OutlookInputs } from './model'
 import { useOutlook } from './useOutlook'
 
 const BASIS = [
-    { value: 'real', label: "Today's money" },
-    { value: 'nominal', label: 'Pounds of the day' },
+    { value: 'real', label: 'Adjusted for inflation', tip: GLOSSARY.real },
+    { value: 'nominal', label: 'Not adjusted for inflation', tip: GLOSSARY.nominal },
 ] as const
 
 /** Where the portfolio could go from here: a range, never a single line. */
@@ -94,8 +96,7 @@ function Controls({ inputs, change }: { inputs: OutlookInputs; change: (patch: P
                 onChange={(goal) => change({ goal })}
             />
             <ChoiceGroup
-                legend="Show amounts in"
-                inline
+                legend="Show amounts"
                 options={BASIS}
                 value={inputs.realTerms ? 'real' : 'nominal'}
                 onChange={(v) => change({ realTerms: v === 'real' })}
@@ -106,29 +107,37 @@ function Controls({ inputs, change }: { inputs: OutlookInputs; change: (patch: P
 
 function Projection({ mc, goal, performance: p, pending }: { mc: MonteCarlo; goal: number | null; performance: Performance; pending: boolean }) {
     const end = mc.years.length - 1
-    const basis = mc.real_terms ? `in today's money, after ${percent(mc.inflation_rate ?? 0.025)} inflation a year` : 'in the pounds of the day'
+    const basis = mc.real_terms ? `adjusted for ${percent(mc.inflation_rate ?? 0.025)} inflation a year` : 'not adjusted for inflation'
     return (
         <>
             <StatGroup>
                 <Stat
-                    label="Middle outcome"
+                    label={<Term explain="median">Median value</Term>}
                     provenance="simulated"
                     value={money(mc.percentile_50[end])}
-                    detail="Half of the outcomes land above it, half below"
+                    detail="50% probability of ending above it"
                 />
-                <Stat label="Paid in by then" value={money(mc.contributions[end])} detail={mc.real_terms ? "In today's money" : undefined} />
+                <Stat label="Paid in by then" value={money(mc.contributions[end])} detail={mc.real_terms ? 'Adjusted for inflation' : undefined} />
                 <Stat
-                    label="Chance of ending below what was paid in"
+                    label={<Term explain="lossProbability">Probability of a loss</Term>}
                     provenance="simulated"
                     value={mc.probability_of_loss === null ? '—' : percent(mc.probability_of_loss, 0)}
+                    detail="Ending below the amount paid in"
                 />
                 {goal !== null && mc.probability_of_goal != null && (
-                    <Stat label={`Chance of reaching ${money(goal)}`} provenance="simulated" value={percent(mc.probability_of_goal, 0)} />
+                    <Stat
+                        label={<Term explain="goalProbability">{`Probability of reaching ${money(goal)}`}</Term>}
+                        provenance="simulated"
+                        value={percent(mc.probability_of_goal, 0)}
+                    />
                 )}
             </StatGroup>
             <FanChart
                 title={`What ${money(p.total_value)} could become`}
-                summary={`The bands hold 8 in 10, and half, of ${OUTLOOK_PATHS.toLocaleString('en-GB')} simulated futures; the line is the middle one.`}
+                summary={
+                    `The shaded bands are the 50% and 80% probability ranges of ${OUTLOOK_PATHS.toLocaleString('en-GB')} simulated paths; ` +
+                    'the line is the median.'
+                }
                 data={{
                     years: mc.years,
                     p10: mc.percentile_10,
@@ -142,15 +151,15 @@ function Projection({ mc, goal, performance: p, pending }: { mc: MonteCarlo; goa
                 startYear={new Date().getFullYear()}
                 pending={pending}
                 notes={
-                    `Simulated from the expected return (${percent(p.expected_return)} a year) and typical yearly swing (±${percent(p.expected_volatility)}) ` +
-                    `stored when the portfolio was opened, with fat-tailed yearly returns, ${basis}. Before fund costs. Not a forecast.`
+                    `Simulated from the expected return (${percent(p.expected_return)} a year) and volatility (${percent(p.expected_volatility)} a year) ` +
+                    `estimated when the portfolio was opened, with fat-tailed yearly returns, ${basis}. After fund charges. Not a forecast.`
                 }
             />
         </>
     )
 }
 
-/** How to read the fan: how the chance of a loss changes, and how often past forecasts held. */
+/** How to read the fan: how the probability of a loss changes, and how often past forecasts held. */
 function Reading({ mc, risk }: { mc: MonteCarlo; risk: number }) {
     const record = useTrackRecord(nearestTested(risk))
     const loss = lossSentence(mc)
