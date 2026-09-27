@@ -424,6 +424,12 @@ class PortfolioListItem(BaseModel):
     total_return_pct: Optional[float] = None
     last_valued_at: Optional[str] = None
     holdings_count: int
+    archived_at: Optional[str] = None       # set only in the archived list
+
+
+class ArchiveResponse(BaseModel):
+    portfolio_id: int
+    archived_at: Optional[str] = None       # None once restored
 
 
 class TrackRecordSummary(BaseModel):

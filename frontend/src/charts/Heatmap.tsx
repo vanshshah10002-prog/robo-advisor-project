@@ -1,6 +1,6 @@
 import { clsx } from 'clsx'
 import type { CSSProperties, ReactNode } from 'react'
-import { heatColour } from '@/lib/palette'
+import { heatShade } from '@/lib/palette'
 import type { ProvenanceKind } from '@/ui/provenance'
 import { ChartFrame } from './ChartFrame'
 import { DataTable, FundCell, type Column } from './DataTable'
@@ -80,7 +80,7 @@ function Row({ label, values, diagonal }: { label: MatrixLabel; values: readonly
                 j === diagonal ? (
                     <span key={j} className={clsx(styles.cell, styles.self)} />
                 ) : (
-                    <span key={j} className={styles.cell} style={{ background: heatColour(v) }}>
+                    <span key={j} className={styles.cell} style={{ background: heatShade(v) }}>
                         {show(v)}
                     </span>
                 ),

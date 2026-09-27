@@ -113,6 +113,12 @@
     gap: var(--space-8);
 }
 
+.swatchNote {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--color-ink-2);
+}
+
 .swatches {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
@@ -130,7 +136,7 @@
 .chip {
     height: 3.5rem;
     margin-bottom: var(--space-2);
-    border: 1px solid rgb(31 27 22 / 0.12);
+    border: var(--rule-hairline);
     border-radius: var(--radius-sm);
 }
 

@@ -100,7 +100,7 @@ export function performanceSentence(history: History): string {
     const last = points[points.length - 1]
     const against = `${money(last.value)} against ${money(last.net_contributions)} paid in`
     if (points.length === 1) {
-        return `Opened on ${date(first.date)}. Its value is recorded at each day's close, so there is one so far: ${against}.`
+        return `Opened on ${date(first.date)}. Its value is recorded at each day's close, and the first close put it at ${against}.`
     }
     const fall = worstFall(points)
     const worst = fall ? ` Its worst fall from a high was ${percent(-fall.value)}.` : ' It has not yet fallen below a previous high.'

@@ -31,6 +31,7 @@ async function stubApi(page: Page) {
         [`GET /api/portfolio/${OPENED_ID}`]: () => ({ ...fx.portfolioDetail, portfolio_id: OPENED_ID }),
         [`GET /api/portfolio/${OPENED_ID}/history`]: () => ({ ...fx.history, portfolio_id: OPENED_ID }),
         'GET /api/portfolios/user/4': () => [{ ...fx.portfolioSummary, portfolio_id: OPENED_ID }],
+        'GET /api/portfolios/user/4/archived': () => [],
         'GET /api/asset-classes': () => [fx.assetClass],
         'GET /api/etfs': () => [fx.etf],
     })

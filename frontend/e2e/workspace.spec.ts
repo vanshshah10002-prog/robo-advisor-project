@@ -4,28 +4,9 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import * as fx from '../src/test/fixtures'
-import { collectErrors, noSidewaysScroll, returningBrowser, routeApi } from './support'
+import { collectErrors, fifteenMonths, noSidewaysScroll, returningBrowser, routeApi } from './support'
 
 const ID = 21
-
-const point = (date: string, value: number, cumulative: number) => ({ date, value, net_contributions: 100_000, cumulative_return: cumulative })
-
-const history = {
-    portfolio_id: ID,
-    points: [
-        point('2025-06-30', 100_000, 0),
-        point('2025-09-25', 104_000, 0.04),
-        point('2025-12-31', 101_000, 0.01),
-        point('2026-06-25', 108_000, 0.08),
-        point('2026-08-25', 106_920, 0.0692),
-        point('2026-09-25', 112_000, 0.12),
-    ],
-    start_date: '2025-06-30',
-    end_date: '2026-09-25',
-    time_weighted_return: 0.12,
-    reason: null,
-    unpriced_tickers: [],
-}
 
 const deposit = { ...fx.transaction, id: 1, ticker: 'CASH', action: 'deposit', quantity: 100_000, price: 1, value: 100_000, cost: 0 }
 
@@ -39,7 +20,7 @@ async function stubWorkspace(page: Page) {
     await routeApi(page, {
         [`GET /api/performance/${ID}`]: () => ({ ...fx.performance, portfolio_id: ID }),
         [`GET /api/portfolio/${ID}`]: () => ({ ...fx.portfolioDetail, portfolio_id: ID }),
-        [`GET /api/portfolio/${ID}/history`]: () => history,
+        [`GET /api/portfolio/${ID}/history`]: () => fifteenMonths(ID),
         [`GET /api/portfolio/${ID}/construction`]: () => ({ ...fx.construction, portfolio_id: ID }),
         'GET /api/universe': () => ({ ...fx.heldUniverse, portfolio_id: ID }),
         'GET /api/strategy/track-record': () => fx.trackRecord,

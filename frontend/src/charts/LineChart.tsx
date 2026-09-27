@@ -179,14 +179,14 @@ function LineMarks({ series, times, x, y, baseline, width }: LineMarksProps) {
                 </g>
             )}
             {series.map((s) =>
-                s.variant === 'area' ? <path key={`${s.key}-fill`} d={areaPath(s.values)} fill={s.colour} fillOpacity={AREA_OPACITY} /> : null,
+                s.variant === 'area' ? <path key={`${s.key}-fill`} d={areaPath(s.values)} style={{ fill: s.colour }} fillOpacity={AREA_OPACITY} /> : null,
             )}
             {series.map((s) => (
                 <path
                     key={s.key}
                     d={linePath(s.values)}
                     fill="none"
-                    stroke={s.colour}
+                    style={{ stroke: s.colour }}
                     strokeWidth={2}
                     strokeLinejoin="round"
                     strokeDasharray={s.variant === 'reference' ? '4 3' : undefined}

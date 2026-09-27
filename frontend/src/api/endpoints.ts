@@ -6,6 +6,7 @@
 import { z } from 'zod'
 import { request } from './http'
 import {
+    archiveResultSchema,
     assetClassSchema,
     constructionSchema,
     contributionResultSchema,
@@ -63,6 +64,15 @@ export const getPortfolio = (portfolioId: number, { signal }: Signal = {}) =>
 
 export const listUserPortfolios = (userId: number, { signal }: Signal = {}) =>
     request(`/portfolios/user/${userId}`, z.array(portfolioSummarySchema), { signal })
+
+export const listArchivedPortfolios = (userId: number, { signal }: Signal = {}) =>
+    request(`/portfolios/user/${userId}/archived`, z.array(portfolioSummarySchema), { signal })
+
+export const archivePortfolio = (portfolioId: number) =>
+    request(`/portfolio/${portfolioId}/archive`, archiveResultSchema, { method: 'POST' })
+
+export const restorePortfolio = (portfolioId: number) =>
+    request(`/portfolio/${portfolioId}/restore`, archiveResultSchema, { method: 'POST' })
 
 export const refreshPortfolio = (portfolioId: number) =>
     request(`/portfolio/${portfolioId}/refresh`, refreshResultSchema, { method: 'POST' })

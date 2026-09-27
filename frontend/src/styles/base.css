@@ -180,8 +180,24 @@ hr {
     scrollbar-color: var(--color-rule-strong) transparent;
 }
 
+/* One staged reveal per page: its first blocks rise into place in turn, once,
+   on arrival. Everything is in place by 540ms; nothing moves after that. */
+.stagger > * {
+    animation: rise var(--dur-slow) var(--ease-out) both;
+}
+
+.stagger > :nth-child(2) { animation-delay: 60ms; }
+.stagger > :nth-child(3) { animation-delay: 120ms; }
+.stagger > :nth-child(n + 4) { animation-delay: 180ms; }
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
+        animation-delay: 0s !important;
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         scroll-behavior: auto !important;

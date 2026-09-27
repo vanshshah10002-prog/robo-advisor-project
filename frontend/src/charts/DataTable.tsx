@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import type { Key, ReactNode } from 'react'
+import { useEffect, useRef, useState, type Key, type ReactNode, type RefObject } from 'react'
 import styles from './DataTable.module.css'
 
 export interface Column<Row> {
@@ -33,13 +33,32 @@ const isBlank = (content: ReactNode) => content === '' || content === null || co
  * A statement-style table: hairline rows, a ruled head, figures right-aligned
  * in tabular serif, totals under a double rule. The first column heads each row.
  */
+/** Whether the element is narrower than what it holds, so it scrolls sideways; kept up to date as either resizes. */
+function useScrollsSideways(ref: RefObject<HTMLElement | null>): boolean {
+    const [scrolls, setScrolls] = useState(false)
+    useEffect(() => {
+        const el = ref.current
+        if (!el || typeof ResizeObserver === 'undefined') return
+        const measure = () => setScrolls(el.scrollWidth > el.clientWidth)
+        const observer = new ResizeObserver(measure)
+        observer.observe(el)
+        if (el.firstElementChild) observer.observe(el.firstElementChild)
+        measure()
+        return () => observer.disconnect()
+    }, [ref])
+    return scrolls
+}
+
 export function DataTable<Row>({ caption, columns, rows, rowKey, footer, stack = false, className }: DataTableProps<Row>) {
     // Stacking changes how the cells display, which can drop their table roles, so they are restated.
     const role = (r: string) => (stack ? r : undefined)
     // A stacked value is one piece beside its label, however many parts it has (a fund's name and ticker, say).
     const value = (content: ReactNode) => (stack && !isBlank(content) ? <span className={styles.stackValue}>{content}</span> : content)
+    // A table wider than its space scrolls; then it is a named stop for the keyboard, so the arrow keys can scroll it.
+    const frame = useRef<HTMLDivElement>(null)
+    const scrolls = useScrollsSideways(frame)
     return (
-        <div className={clsx(styles.scroll, className)}>
+        <div ref={frame} className={clsx(styles.scroll, className)} {...(scrolls && { tabIndex: 0, role: 'region', 'aria-label': caption })}>
             <table className={clsx(styles.table, stack && styles.stack)} role={role('table')}>
                 <caption className="visually-hidden">{caption}</caption>
                 <thead role={role('rowgroup')}>

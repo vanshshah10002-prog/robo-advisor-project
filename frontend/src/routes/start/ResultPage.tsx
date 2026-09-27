@@ -1,4 +1,5 @@
 import { ArrowRight } from '@phosphor-icons/react'
+import { clsx } from 'clsx'
 import { Navigate } from 'react-router-dom'
 import { isNotFound } from '@/api/http'
 import { usePreview, useRiskProfile, useTrackRecord } from '@/api/queries'
@@ -45,7 +46,7 @@ function Result({ userId }: { userId: number }) {
 function Explained({ profile, userId }: { profile: RiskProfile; userId: number }) {
     const amount = useOnboardingDraft((s) => s.investmentAmount)
     return (
-        <article className={styles.result} aria-labelledby="result-title">
+        <article className={clsx(styles.result, 'stagger')} aria-labelledby="result-title">
             <header className={styles.head}>
                 <p className="label">Step 4 of 4</p>
                 <h1 id="result-title" className={styles.title}>

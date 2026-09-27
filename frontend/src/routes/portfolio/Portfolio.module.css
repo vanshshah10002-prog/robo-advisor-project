@@ -61,6 +61,16 @@
     color: var(--color-ink-3);
 }
 
+/* Takes focus after archiving or restoring, in place of the button that went with its row. */
+.outcome:focus {
+    outline: none;
+}
+
+.outcome:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+}
+
 .back {
     padding-top: var(--space-4);
     border-top: var(--rule-hairline);

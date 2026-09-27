@@ -103,7 +103,7 @@ describe('the list of portfolios', () => {
     })
 
     it('shows the same empty state when your list is empty', async () => {
-        stubApi({ '/api/portfolios/user/4': [] })
+        stubApi({ '/api/portfolios/user/4': [], '/api/portfolios/user/4/archived': [] })
         useIdentity.getState().setUser(4)
         renderApp('/portfolios')
         expect(await screen.findByText(/No portfolios have been opened in this browser yet/)).toBeInTheDocument()
@@ -111,6 +111,7 @@ describe('the list of portfolios', () => {
 
     it('lists each one with its value, and totals the valued ones', async () => {
         stubApi({
+            '/api/portfolios/user/4/archived': [],
             '/api/portfolios/user/4': [
                 { ...fx.portfolioSummary, portfolio_id: 21, name: 'House deposit' },
                 { ...fx.portfolioSummary, portfolio_id: 19, name: 'My Portfolio', total_value: null, total_return_pct: null },
@@ -142,7 +143,10 @@ describe('the list of portfolios', () => {
     it('offers a retry when the list does not load', async () => {
         const user = userEvent.setup()
         let fail = true
-        stubApi({ '/api/portfolios/user/4': () => (fail ? { status: 500, body: { detail: 'Database busy.' } } : [fx.portfolioSummary]) })
+        stubApi({
+            '/api/portfolios/user/4': () => (fail ? { status: 500, body: { detail: 'Database busy.' } } : [fx.portfolioSummary]),
+            '/api/portfolios/user/4/archived': [],
+        })
         useIdentity.getState().setUser(4)
         renderApp('/portfolios')
 

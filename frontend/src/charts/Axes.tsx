@@ -89,7 +89,7 @@ export function Crosshair({ x, height, dots }: { x: number; height: number; dots
         <g aria-hidden="true">
             <line className={styles.crosshair} x1={x} x2={x} y1={0} y2={height} />
             {dots.map((d) => (
-                <circle key={d.key} className={styles.dot} cx={x} cy={d.cy} r={3.5} fill={d.fill} />
+                <circle key={d.key} className={styles.dot} cx={x} cy={d.cy} r={3.5} style={{ fill: d.fill }} />
             ))}
         </g>
     )

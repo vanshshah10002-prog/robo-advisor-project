@@ -160,10 +160,10 @@ function FanMarks({ data, x, y, goal, width }: { data: FanData; x: Linear; y: Li
 
     return (
         <>
-            <path d={band(data.p10, data.p90)} fill={CHART_INK.bandOuter} />
-            <path d={band(data.p25, data.p75)} fill={CHART_INK.bandInner} />
-            {data.paidIn && <path d={path(data.paidIn)} fill="none" stroke={PAID_IN} strokeWidth={2} strokeDasharray="4 3" />}
-            <path d={path(data.p50)} fill="none" stroke={CHART_INK.median} strokeWidth={2} strokeLinejoin="round" />
+            <path d={band(data.p10, data.p90)} style={{ fill: CHART_INK.bandOuter }} />
+            <path d={band(data.p25, data.p75)} style={{ fill: CHART_INK.bandInner }} />
+            {data.paidIn && <path d={path(data.paidIn)} fill="none" style={{ stroke: PAID_IN }} strokeWidth={2} strokeDasharray="4 3" />}
+            <path d={path(data.p50)} fill="none" style={{ stroke: CHART_INK.median }} strokeWidth={2} strokeLinejoin="round" />
             {goal ? (
                 <g>
                     <line x1={0} x2={width} y1={y(goal)} y2={y(goal)} className={styles.baseline} strokeDasharray="1 3" />

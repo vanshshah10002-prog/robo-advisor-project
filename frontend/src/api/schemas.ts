@@ -138,6 +138,9 @@ export const portfolioDetailSchema = z.object({
     net_contributions: z.number(),
     total_return_pct: z.number(),
     last_valued_at: isoDate.nullable(),
+    /** Off its owner's list; nothing is deleted and it still opens. */
+    archived: z.boolean(),
+    archived_at: isoDate.nullable(),
     holdings: z.array(storedHoldingSchema),
 })
 
@@ -157,6 +160,14 @@ export const portfolioSummarySchema = z.object({
     total_return_pct: z.number().nullable(),
     last_valued_at: isoDate.nullable(),
     holdings_count: z.number().int(),
+    /** Set only on rows of the archived list. */
+    archived_at: isoDate.nullable(),
+})
+
+/** POST /portfolio/{id}/archive and /restore. */
+export const archiveResultSchema = z.object({
+    portfolio_id: z.number().int(),
+    archived_at: isoDate.nullable(),
 })
 
 export const refreshResultSchema = z.object({

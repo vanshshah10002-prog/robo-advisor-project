@@ -53,6 +53,8 @@ export const portfolioDetail = {
     net_contributions: 100_000,
     total_return_pct: 0.245,
     last_valued_at: null,
+    archived: false,
+    archived_at: null,
     holdings: [
         { ticker: 'VWRL.L', asset_class: 'global_equity', units: 400, average_cost: 100, current_price: null, price_as_of: null, target_weight: 0.5, current_weight: null },
     ],
@@ -72,7 +74,10 @@ export const portfolioSummary = {
     total_return_pct: 0.245,
     last_valued_at: '2026-09-25T16:35:00',
     holdings_count: 7,
+    archived_at: null as string | null,
 }
+
+export const archivedSummary = { ...portfolioSummary, portfolio_id: 17, name: 'Old plan', archived_at: '2026-09-20T09:00:00' }
 
 export const refreshResult = {
     portfolio_id: 19,

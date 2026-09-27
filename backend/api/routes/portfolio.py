@@ -14,7 +14,7 @@ from backend.db.database import get_db, init_db
 from backend.db.models import Portfolio, Holding, RiskProfile, User, Transaction
 from backend.db.ledger_store import mark_to_market, record_fills
 from backend.api.models import (
-    AllocationItem, ConstructionResponse, PortfolioListItem, PortfolioRequest, PortfolioResponse,
+    AllocationItem, ArchiveResponse, ConstructionResponse, PortfolioListItem, PortfolioRequest, PortfolioResponse,
     PreviewAllocation, PreviewRequest, PreviewResponse,
 )
 from backend.engine.optimizer import OptimisationError, build_optimised_portfolio
@@ -256,6 +256,8 @@ async def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
         "net_contributions": portfolio.net_contributions or 0.0,
         "total_return_pct": portfolio.total_return_pct or 0.0,
         "last_valued_at": portfolio.last_valued_at.isoformat() if portfolio.last_valued_at else None,
+        "archived": portfolio.is_active is False,  # an unset flag counts as on the list
+        "archived_at": portfolio.archived_at.isoformat() if portfolio.archived_at else None,
         "holdings": [
             {
                 "ticker": h.ticker,
@@ -275,15 +277,27 @@ async def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
 @router.get("/portfolios/user/{user_id}", response_model=list[PortfolioListItem])
 async def get_user_portfolios(user_id: int, db: Session = Depends(get_db)):
     """
-    A user's active portfolios, newest first, each valued at its last stored
-    prices (no network). A portfolio never valued since the ledger was
-    introduced reports no value rather than a guessed one.
+    A user's portfolios, newest first, each valued at its last stored prices
+    (no network). A portfolio never valued since the ledger was introduced
+    reports no value rather than a guessed one.
     """
+    return _list_portfolios(db, user_id, archived=False)
+
+
+@router.get("/portfolios/user/{user_id}/archived", response_model=list[PortfolioListItem])
+async def get_archived_portfolios(user_id: int, db: Session = Depends(get_db)):
+    """The portfolios a user has archived, newest first, valued as on their list."""
+    return _list_portfolios(db, user_id, archived=True)
+
+
+def _list_portfolios(db: Session, user_id: int, archived: bool) -> list[PortfolioListItem]:
     from backend.db.ledger_store import is_legacy_holding, last_prices, load_book
 
+    # An unset flag counts as on the list, so no portfolio is ever in neither list.
+    on_list = Portfolio.is_active.is_not(False)
     portfolios = db.query(Portfolio).filter(
         Portfolio.user_id == user_id,
-        Portfolio.is_active == True,  # noqa: E712 (SQLAlchemy column comparison)
+        ~on_list if archived else on_list,
     ).order_by(Portfolio.created_at.desc()).all()
 
     items = []
@@ -310,8 +324,39 @@ async def get_user_portfolios(user_id: int, db: Session = Depends(get_db)):
             total_return_pct=(total_value - contrib) / contrib if total_value is not None and contrib else None,
             last_valued_at=p.last_valued_at.isoformat() if p.last_valued_at else None,
             holdings_count=sum(1 for h in holdings if (h.quantity or 0.0) > 0),
+            archived_at=p.archived_at.isoformat() if p.archived_at else None,
         ))
     return items
+
+
+def _set_archived(db: Session, portfolio_id: int, archived: bool) -> ArchiveResponse:
+    """Archives or restores; repeating either is harmless and keeps the first archive date."""
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if archived and portfolio.archived_at is None:
+        portfolio.is_active = False
+        portfolio.archived_at = datetime.datetime.utcnow()
+    elif not archived:
+        portfolio.is_active = True
+        portfolio.archived_at = None
+    db.commit()
+    return ArchiveResponse(
+        portfolio_id=portfolio.id,
+        archived_at=portfolio.archived_at.isoformat() if portfolio.archived_at else None,
+    )
+
+
+@router.post("/portfolio/{portfolio_id}/archive", response_model=ArchiveResponse)
+async def archive_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
+    """Takes a portfolio off its owner's list. Nothing is deleted: it still opens, and can be restored."""
+    return _set_archived(db, portfolio_id, archived=True)
+
+
+@router.post("/portfolio/{portfolio_id}/restore", response_model=ArchiveResponse)
+async def restore_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
+    """Puts an archived portfolio back on its owner's list."""
+    return _set_archived(db, portfolio_id, archived=False)
 
 
 @router.get("/portfolio/{portfolio_id}/construction", response_model=ConstructionResponse)

@@ -1,5 +1,6 @@
+import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
-import { useHistory, useUserPortfolios } from '@/api/queries'
+import { useArchivedPortfolios, useHistory, useUserPortfolios } from '@/api/queries'
 import type { PortfolioSummary } from '@/api/schemas'
 import { DataTable, Sparkline, type Column } from '@/charts'
 import { date, money } from '@/lib/format'
@@ -9,8 +10,10 @@ import { useIdentity } from '@/store/session'
 import { Button, ButtonLink } from '@/ui/Button'
 import { Notice } from '@/ui/Notice'
 import { Delta } from '@/ui/Stat'
+import { ArchivedList, OutcomeNotice } from './Archive'
 import { listSentence, portfolioName } from './model'
 import styles from './Portfolio.module.css'
+import { archiveColumn, useArchiving } from './useArchiving'
 
 const COLUMNS: Column<PortfolioSummary>[] = [
     {
@@ -46,30 +49,49 @@ function Trend({ id }: { id: number }) {
     )
 }
 
-/** Every portfolio this browser has opened, newest first, with its value today. */
+/** Every portfolio this browser has opened, newest first, with its value today; the archived ones below. */
 export default function PortfoliosPage() {
     usePageTitle('Your portfolios')
     const userId = useIdentity((s) => s.userId)
     const portfolios = useUserPortfolios(userId)
+    const archived = useArchivedPortfolios(userId)
+    const { outcome, pendingId, archive, restore } = useArchiving(portfolios.data)
 
     return (
-        <article className={styles.page} aria-labelledby="portfolios-title">
+        <article className={clsx(styles.page, 'stagger')} aria-labelledby="portfolios-title">
             <header className={styles.head}>
                 <p className="label">Your portfolios</p>
                 <h1 id="portfolios-title" className={styles.title}>
                     {portfolios.data?.length ? listSentence(portfolios.data) : 'Your portfolios'}
                 </h1>
             </header>
-            <List userId={userId} portfolios={portfolios} />
+            {outcome && <OutcomeNotice outcome={outcome} onUndo={restore} />}
+            <List userId={userId} portfolios={portfolios} archived={archived} onArchive={archive} pendingId={pendingId} />
+            {userId !== null && <ArchivedList archived={archived} onRestore={restore} pendingId={pendingId} />}
         </article>
     )
 }
 
-function List({ userId, portfolios }: { userId: number | null; portfolios: ReturnType<typeof useUserPortfolios> }) {
-    if (userId === null || (portfolios.isSuccess && portfolios.data.length === 0)) {
+interface ListProps {
+    userId: number | null
+    portfolios: ReturnType<typeof useUserPortfolios>
+    archived: ReturnType<typeof useArchivedPortfolios>
+    onArchive: (row: PortfolioSummary) => void
+    pendingId: number | null
+}
+
+function List({ userId, portfolios, archived, onArchive, pendingId }: ListProps) {
+    const isEmpty = userId === null || (portfolios.isSuccess && portfolios.data.length === 0)
+    if (isEmpty && archived.isPending && userId !== null) return <p className={styles.loading} aria-busy="true">Loading your portfolios…</p>
+    if (isEmpty) {
+        const allArchived = (archived.data?.length ?? 0) > 0
         return (
             <div className={styles.empty}>
-                <p className={styles.lead}>No portfolios have been opened in this browser yet. Building one takes about five minutes, and nothing is saved until you choose to open it.</p>
+                <p className={styles.lead}>
+                    {allArchived
+                        ? 'Every portfolio opened in this browser is archived. Restore one below to put it back on this list, or build a new one.'
+                        : 'No portfolios have been opened in this browser yet. Building one takes about five minutes, and nothing is saved until you choose to open it.'}
+                </p>
                 <ButtonLink to="/start">Build a portfolio</ButtonLink>
             </div>
         )
@@ -82,5 +104,5 @@ function List({ userId, portfolios }: { userId: number | null; portfolios: Retur
             </Notice>
         )
     }
-    return <DataTable caption="Your portfolios" stack columns={COLUMNS} rows={portfolios.data} rowKey={(r) => r.portfolio_id} />
+    return <DataTable caption="Your portfolios" stack columns={[...COLUMNS, archiveColumn(onArchive, pendingId)]} rows={portfolios.data} rowKey={(r) => r.portfolio_id} />
 }

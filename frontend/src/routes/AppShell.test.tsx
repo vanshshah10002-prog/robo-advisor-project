@@ -52,6 +52,16 @@ describe('AppShell', () => {
         expect(screen.getByRole('contentinfo')).toHaveTextContent('no real money moves')
     })
 
+    it('offers light, dark or the device setting in the small print, and keeps the choice', async () => {
+        renderAt('/styleguide')
+        const appearance = within(screen.getByRole('contentinfo')).getByRole('group', { name: 'Appearance' })
+        expect(within(appearance).getByRole('radio', { name: 'Match device' })).toBeChecked()
+        await userEvent.click(within(appearance).getByRole('radio', { name: 'Dark' }))
+        expect(within(appearance).getByRole('radio', { name: 'Dark' })).toBeChecked()
+        expect(document.documentElement.dataset.theme).toBe('dark')
+        expect(localStorage.getItem('ukra.theme')).toBe('dark')
+    })
+
     it('links home, to the places you return to, and to the one new action', () => {
         renderAt('/styleguide')
         expect(screen.getByRole('link', { name: 'UK Robo Advisor' })).toHaveAttribute('href', '/')

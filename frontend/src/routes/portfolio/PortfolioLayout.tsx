@@ -10,6 +10,7 @@ import { useIdentity } from '@/store/session'
 import { Button, ButtonLink } from '@/ui/Button'
 import { Notice } from '@/ui/Notice'
 import NotFound from '../NotFound'
+import { ArchivedNotice } from './Archive'
 import { SECTIONS, type PortfolioContext } from './context'
 import { isUnrecorded } from './model'
 import styles from './Portfolio.module.css'
@@ -88,6 +89,7 @@ function Workspace({ id, performance }: { id: number; performance: Performance }
                     </ul>
                 </nav>
             </div>
+            {detail.data?.archived && <ArchivedNotice id={id} archivedAt={detail.data.archived_at} />}
             {detail.isError && (
                 <Notice tone="error" title="Part of this portfolio did not load" action={<Button size="sm" variant="secondary" onClick={() => detail.refetch()}>Try again</Button>}>
                     {detail.error.message} Its risk level, account and monthly amount are left out until it does.

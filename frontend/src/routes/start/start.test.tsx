@@ -161,7 +161,7 @@ describe('onboarding', () => {
         renderApp('/start/losses')
 
         expect(await screen.findByText('The questions did not load')).toBeInTheDocument()
-        expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+        expect(within(screen.getByRole('main')).queryByRole('radio')).not.toBeInTheDocument()
         fail = false
         await user.click(screen.getByRole('button', { name: 'Try again' }))
         expect(await screen.findByRole('group', { name: /dropped 20%/ })).toBeInTheDocument()

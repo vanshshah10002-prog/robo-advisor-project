@@ -2,6 +2,7 @@ import { Suspense, useEffect, useRef, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { ButtonLink } from '@/ui/Button'
 import { ErrorBoundary } from '@/ui/ErrorBoundary'
+import { ThemeSwitch } from '@/ui/ThemeSwitch'
 import styles from './AppShell.module.css'
 
 const NAV = [
@@ -91,6 +92,7 @@ export default function AppShell() {
                         Model portfolios: no real money moves. Prices are end-of-day closes in pounds sterling. Past
                         performance, real or simulated, is not a guide to future returns.
                     </p>
+                    <ThemeSwitch />
                 </div>
             </footer>
         </div>

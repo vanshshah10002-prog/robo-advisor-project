@@ -80,7 +80,8 @@ class Portfolio(Base):
     net_contributions = Column(Float, default=0.0)  # Deposits minus withdrawals, GBP
     last_valued_at = Column(DateTime, nullable=True)  # When prices were last marked
     construction = Column(JSON, nullable=True)  # How it was built (engine.construction snapshot)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True)  # False once archived: off the owner's list, nothing deleted
+    archived_at = Column(DateTime, nullable=True)  # When it was archived; None while on the list
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

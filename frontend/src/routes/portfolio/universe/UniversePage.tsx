@@ -1,3 +1,4 @@
+import { clsx } from 'clsx'
 import { useConstruction, useUniverse } from '@/api/queries'
 import type { ConstructionSnapshot, Universe } from '@/api/schemas'
 import { AllocationBar, CompareBars, Heatmap } from '@/charts'
@@ -33,7 +34,7 @@ export default function UniversePage() {
 function Body({ universe, snapshot }: { universe: Universe; snapshot: ConstructionSnapshot | null }) {
     const rows = blockRows(universe, snapshot)
     return (
-        <article className={styles.section} aria-labelledby="universe-title">
+        <article className={clsx(styles.section, 'stagger')} aria-labelledby="universe-title">
             <header className={styles.head}>
                 <h1 id="universe-title" className={styles.title}>
                     {universeSentence(rows)}

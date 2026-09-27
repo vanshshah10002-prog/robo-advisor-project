@@ -1,6 +1,6 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CompareBars } from './CompareBars'
 import { DataTable, type Column } from './DataTable'
 import { Heatmap } from './Heatmap'
@@ -140,5 +140,36 @@ describe('DataTable', () => {
         render(<DataTable caption="Funds" columns={columns} rows={rows} rowKey={(r) => r.name} />)
         expect(screen.getByRole('table', { name: 'Funds' })).not.toHaveAttribute('role')
         expect(screen.getAllByRole('cell')[0].children).toHaveLength(0)
+    })
+
+    it('can be reached by keyboard and named when it scrolls sideways, and only then', () => {
+        let wide = true
+        vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(() => (wide ? 900 : 400))
+        vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400)
+        let resized = () => {}
+        vi.stubGlobal('ResizeObserver', class {
+            constructor(callback: () => void) {
+                resized = callback
+            }
+            observe() {}
+            disconnect() {}
+        })
+
+        render(<DataTable caption="Funds" columns={columns} rows={rows} rowKey={(r) => r.name} />)
+        const region = screen.getByRole('region', { name: 'Funds' })
+        expect(region).toHaveAttribute('tabindex', '0')
+        expect(region).toContainElement(screen.getByRole('table'))
+
+        wide = false
+        act(() => resized())
+        expect(screen.queryByRole('region')).not.toBeInTheDocument()
+        expect(screen.getByRole('table').parentElement).not.toHaveAttribute('tabindex')
+        vi.restoreAllMocks()
+    })
+
+    it('adds no stop for the keyboard where the browser cannot measure', () => {
+        vi.stubGlobal('ResizeObserver', undefined)
+        render(<DataTable caption="Funds" columns={columns} rows={rows} rowKey={(r) => r.name} />)
+        expect(screen.queryByRole('region')).not.toBeInTheDocument()
     })
 })

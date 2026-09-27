@@ -44,6 +44,7 @@ const queryCases: [string, () => { isSuccess: boolean; isError: boolean; error: 
     ['useMinimalQuizQuestions', () => q.useMinimalQuizQuestions(), '/api/quiz-questions/minimal', [fx.minimalQuizQuestion]],
     ['useRiskProfile', () => q.useRiskProfile(4), '/api/risk-profile/4', fx.riskProfile],
     ['useUserPortfolios', () => q.useUserPortfolios(4), '/api/portfolios/user/4', [fx.portfolioSummary]],
+    ['useArchivedPortfolios', () => q.useArchivedPortfolios(4), '/api/portfolios/user/4/archived', [fx.archivedSummary]],
     ['usePortfolioDetail', () => q.usePortfolioDetail(19), '/api/portfolio/19', fx.portfolioDetail],
     ['usePerformance', () => q.usePerformance(19), '/api/performance/19', fx.performance],
     ['useRebalancePlan', () => q.useRebalancePlan(19), '/api/rebalance/19', fx.rebalancePlan],
@@ -96,6 +97,7 @@ describe('query hooks', () => {
     it.each<IdleRow>([
         ['useRiskProfile', () => q.useRiskProfile(null)],
         ['useUserPortfolios', () => q.useUserPortfolios(null)],
+        ['useArchivedPortfolios', () => q.useArchivedPortfolios(null)],
         ['usePortfolioDetail', () => q.usePortfolioDetail(null)],
         ['useRebalancePlan', () => q.useRebalancePlan(null)],
         ['useTransactions', () => q.useTransactions(null)],
@@ -133,6 +135,24 @@ describe('mutation hooks', () => {
 
         await waitFor(() => expect(result.current.isSuccess).toBe(true))
         expect(calls[0]).toMatchObject({ url: path, method: 'POST' })
+    })
+
+    it.each([
+        [true, '/api/portfolio/19/archive'],
+        [false, '/api/portfolio/19/restore'],
+    ])('useSetArchived(%s) posts to %s, then refreshes the portfolio and every list', async (archived, path) => {
+        const calls = stubApi({ [path]: { portfolio_id: 19, archived_at: archived ? '2026-09-27T10:00:00' : null } })
+        const client = q.createQueryClient()
+        const invalidate = vi.spyOn(client, 'invalidateQueries')
+        const Wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        const { result } = renderHook(() => q.useSetArchived(), { wrapper: Wrapper })
+
+        result.current.mutate({ portfolioId: 19, archived })
+
+        await waitFor(() => expect(result.current.isSuccess).toBe(true))
+        expect(calls[0]).toMatchObject({ url: path, method: 'POST' })
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: q.keys.portfolioDetail(19) })
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: ['portfolios'] })
     })
 
     it('caches the submitted risk profile under its user', async () => {

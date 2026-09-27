@@ -1,3 +1,4 @@
+import { clsx } from 'clsx'
 import { Navigate } from 'react-router-dom'
 import { isNotFound } from '@/api/http'
 import { useAssetClassNames } from '@/api/names'
@@ -40,7 +41,7 @@ function Proposal({ profile, userId }: { profile: RiskProfile; userId: number })
     const stale = catchingUp || invalid
 
     return (
-        <div className={styles.layout}>
+        <div className={clsx(styles.layout, 'stagger')}>
             {/* Outside the article so that on a phone the sentence comes before the controls. */}
             <header className={styles.head}>
                 <p className="label">Your proposal · not saved</p>

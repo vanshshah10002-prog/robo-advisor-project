@@ -74,6 +74,20 @@ describe('Legend', () => {
         expect(container.querySelector('line[stroke-dasharray]')).not.toBeNull()
         expect(container.querySelectorAll('rect')).toHaveLength(2)
     })
+
+    it('draws its keys through style, where a token reference resolves', () => {
+        const { container } = render(
+            <Legend
+                items={[
+                    { key: 'a', label: 'Strategy', colour: 'var(--chart-cat-1)', mark: 'line' },
+                    { key: 'b', label: 'Growth', colour: 'var(--chart-growth-1)' },
+                ]}
+            />,
+        )
+        expect(container.querySelector('line')?.getAttribute('style')).toContain('stroke: var(--chart-cat-1)')
+        expect(container.querySelector('rect')?.getAttribute('style')).toContain('fill: var(--chart-growth-1)')
+        expect(container.querySelector('[fill^="var("], [stroke^="var("]')).toBeNull()
+    })
 })
 
 const holdings: AllocationItem[] = [

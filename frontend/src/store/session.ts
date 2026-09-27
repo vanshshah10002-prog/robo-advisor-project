@@ -31,7 +31,7 @@ type Identity = z.infer<typeof identitySchema>
 
 interface IdentityActions {
     setUser: (userId: number) => void
-    setLastPortfolio: (portfolioId: number) => void
+    setLastPortfolio: (portfolioId: number | null) => void
     forget: () => void
 }
 

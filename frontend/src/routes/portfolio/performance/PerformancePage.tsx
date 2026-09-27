@@ -1,3 +1,4 @@
+import { clsx } from 'clsx'
 import { useState } from 'react'
 import { useHistory } from '@/api/queries'
 import type { History, Performance } from '@/api/schemas'
@@ -32,7 +33,7 @@ export default function PerformancePage() {
         )
     }
     return (
-        <article className={styles.section} aria-labelledby="performance-title">
+        <article className={clsx(styles.section, 'stagger')} aria-labelledby="performance-title">
             <h1 id="performance-title" className={styles.title}>
                 {performanceSentence(history.data)}
             </h1>
@@ -56,8 +57,13 @@ function Figures({ points, performance: p }: { points: readonly Point[]; perform
     const yearly = first && last ? annualised(last.cumulative_return, first.date, last.date) : null
     return (
         <StatGroup>
-            <Stat label="Return since opening" provenance="measured" value={signedPercent(sinceOpening)} detail="Growth only: money paid in is not counted as gain" />
-            <Stat label="Gain or loss" provenance="measured" value={signedMoney(p.total_value - p.net_contributions)} detail={`On ${money(p.net_contributions)} paid in`} />
+            <Stat
+                label="Return since opening"
+                provenance="measured"
+                value={signedPercent(sinceOpening)}
+                detail={last ? `To the close on ${date(last.date)}. Money paid in is not counted as growth` : undefined}
+            />
+            <Stat label="Gain or loss" provenance="measured" value={signedMoney(p.total_value - p.net_contributions)} detail={`At the latest prices, on ${money(p.net_contributions)} paid in`} />
             <Stat label="Worst fall from a high" provenance="measured" value={fall ? percent(-fall.value) : 'None yet'} detail={fall ? `Lowest on ${date(fall.date)}` : undefined} />
             <Stat
                 label="Expected when opened"

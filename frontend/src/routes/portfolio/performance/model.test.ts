@@ -136,7 +136,7 @@ describe('performanceSentence', () => {
 
     it('explains a single day of history', () => {
         expect(performanceSentence(history([point('2026-09-26', -0.001, 99_900)]))).toBe(
-            "Opened on 26 Sept 2026. Its value is recorded at each day's close, so there is one so far: £99,900 against £100,000 paid in.",
+            "Opened on 26 Sept 2026. Its value is recorded at each day's close, and the first close put it at £99,900 against £100,000 paid in.",
         )
     })
 

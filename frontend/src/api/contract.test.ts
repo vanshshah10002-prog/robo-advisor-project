@@ -1,7 +1,7 @@
 /**
  * Contract: responses recorded from the running API (src/test/contract/*.json)
  * must parse with the schemas the app uses. Re-record after a backend change:
- * start the API and repeat the requests listed in docs/UI_OVERHAUL.md §9.
+ * start the API and repeat the requests listed in docs/UI_OVERHAUL.md §12.
  */
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'

@@ -1,3 +1,4 @@
+import { clsx } from 'clsx'
 import { useFundNames } from '@/api/names'
 import { useTransactions } from '@/api/queries'
 import type { Transaction } from '@/api/schemas'
@@ -19,7 +20,7 @@ export default function ActivityPage() {
     const transactions = useTransactions(id)
 
     return (
-        <article className={styles.section} aria-labelledby="activity-title">
+        <article className={clsx(styles.section, 'stagger')} aria-labelledby="activity-title">
             <h1 id="activity-title" className={styles.title}>
                 {transactions.data ? activitySentence(ledgerSummary(transactions.data), performance.needs_rebalance) : 'The ledger'}
             </h1>

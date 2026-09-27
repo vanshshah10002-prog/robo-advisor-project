@@ -20,8 +20,8 @@
        CVD separation (worst 10.6) and the normal-vision floor (worst 15.6).
    Chart hexes are mirrored in src/lib/palette.ts; a test keeps them in sync.
 
-   Semantic tokens (--color-*) are what components use. A dark theme later
-   redefines only these, under [data-theme='dark'].
+   Semantic tokens (--color-*) are what components use. The dark theme at
+   the end redefines only these and the chart tokens, under [data-theme='dark'].
    ============================================================================= */
 
 :root {
@@ -86,6 +86,8 @@
     --chart-median: var(--color-ink);
     --chart-band-inner: rgb(40 78 153 / 0.22);   /* 25–75th percentile */
     --chart-band-outer: rgb(40 78 153 / 0.10);   /* 10–90th percentile */
+    --chart-heat-low: #fdfbf7;       /* correlation 0 and below: the sheet */
+    --chart-heat-high: #7d93bf;      /* correlation 1: 60% accent, ink stays 4.5:1 */
 
     /* ── Type ─────────────────────────────────────────────────────────────── */
     --font-display: 'Newsreader Variable', 'Newsreader', Georgia, 'Times New Roman', serif;
@@ -162,6 +164,71 @@
     --control-h-sm: 2.25rem;
     --focus-ring-width: 2px;
     --focus-ring-offset: 2px;
+}
+
+/* ── Dark ─────────────────────────────────────────────────────────────────────
+   The same statement after dark: warm near-black paper and warm ink, not an
+   inversion. Measured against its own ground by the same rules as the light
+   theme: text 4.5:1 on paper, sheet and sunk; control boundaries 3:1; both
+   ramps monotone with the strongest step first (here the brightest), steps
+   ≥ 0.06 apart in lightness, weakest step 2:1 on paper; growth vs defensive
+   ≥ 17 ΔE (CIEDE2000) under simulated deuteranopia and protanopia; the
+   categorical set within one lightness band, adjacent pairs ≥ 10 ΔE under
+   both simulations; ink 4.5:1 on every heatmap shade.
+   The theme is set on <html> before first paint (index.html) from the saved
+   choice or the device setting, so there is no flash of the light theme. */
+:root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --color-paper: #16130f;
+    --color-sheet: #1e1a16;
+    --color-sunk: #0f0d0a;
+    --color-scrim: rgb(0 0 0 / 0.6);
+
+    --color-ink: #f0eadf;            /* 15.5:1 on paper */
+    --color-ink-2: #c7beb2;          /* 10.1:1 */
+    --color-ink-3: #a1978b;          /* 6.4:1 paper / 6.8:1 sunk */
+    --color-ink-inverse: #16130f;
+
+    --color-rule: #342e28;
+    --color-rule-strong: #7b7268;    /* 3.9:1 on paper */
+
+    --color-accent: #93b1ee;         /* 8.6:1 */
+    --color-accent-hover: #b3c9f5;
+    --color-accent-wash: #1f2940;
+
+    --color-loss: #f29488;
+    --color-loss-wash: #3b1d19;
+    --color-ok: #86d19b;
+    --color-ok-wash: #14301d;
+    --color-warn: #eab466;
+    --color-warn-wash: #35260e;
+
+    --chart-growth-1: #6fd6c4;
+    --chart-growth-2: #4ebcab;
+    --chart-growth-3: #35a090;
+    --chart-growth-4: #258476;
+    --chart-growth-5: #1b695e;
+
+    --chart-defensive-1: #f5b074;
+    --chart-defensive-2: #dc9152;
+    --chart-defensive-3: #bf7536;
+    --chart-defensive-4: #9f5c22;
+    --chart-defensive-5: #814515;
+
+    --chart-cat-1: #86a6ee;
+    --chart-cat-2: #3fc3aa;
+    --chart-cat-3: #e0a04e;
+    --chart-cat-4: #ec8088;
+    --chart-cat-5: #bf92da;
+    --chart-cat-6: #a3c86e;
+
+    --chart-band-inner: rgb(147 177 238 / 0.26);
+    --chart-band-outer: rgb(147 177 238 / 0.12);
+    --chart-heat-low: #1e1a16;
+    --chart-heat-high: #3b4d74;
+
+    --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -10px rgb(0 0 0 / 0.7);
 }
 
 @media (prefers-reduced-motion: reduce) {

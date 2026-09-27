@@ -4,10 +4,25 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f7f4ed" />
     <meta name="description" content="UK Robo Advisor — evidence-based portfolios of London-listed ETFs for UK retail investors, with every figure labelled as measured, simulated or estimated." />
     <title>UK Robo Advisor</title>
+    <script>
+      // Sets the theme before first paint, so a dark-set device never flashes the light page.
+      // src/lib/theme.ts takes over from here with the same key and rules; theme.test.tsx runs this script.
+      ;(function () {
+        var choice = null
+        try {
+          choice = localStorage.getItem('ukra.theme')
+        } catch (e) {}
+        var device = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var theme = choice === 'light' || choice === 'dark' ? choice : device
+        document.documentElement.dataset.theme = theme
+        document.querySelector('meta[name="color-scheme"]').setAttribute('content', theme)
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', theme === 'dark' ? '#16130f' : '#f7f4ed')
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

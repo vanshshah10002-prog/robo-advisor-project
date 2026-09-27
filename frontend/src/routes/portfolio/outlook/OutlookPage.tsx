@@ -1,3 +1,4 @@
+import { clsx } from 'clsx'
 import { useState } from 'react'
 import { useTrackRecord } from '@/api/queries'
 import type { MonteCarlo, Performance, PortfolioDetail } from '@/api/schemas'
@@ -36,7 +37,7 @@ function Outlook({ id, performance, detail }: { id: number; performance: Perform
     const mc = projection.data
 
     return (
-        <article className={styles.section} aria-labelledby="outlook-title" aria-busy={catchingUp || undefined}>
+        <article className={clsx(styles.section, 'stagger')} aria-labelledby="outlook-title" aria-busy={catchingUp || undefined}>
             <header className={styles.head}>
                 <h1 id="outlook-title" className={styles.title}>
                     {mc ? outlookSentence(mc) : 'Simulating the years ahead'}

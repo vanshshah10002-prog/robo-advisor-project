@@ -33,4 +33,5 @@ afterEach(() => {
     useOnboardingDraft.getState().reset()
     sessionStorage.clear()
     localStorage.clear()
+    delete document.documentElement.dataset.theme
 })

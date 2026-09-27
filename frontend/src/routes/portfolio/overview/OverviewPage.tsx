@@ -1,4 +1,5 @@
 import { ArrowsClockwise, CheckCircle, Warning } from '@phosphor-icons/react'
+import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
 import { useAssetClassNames, useFundNames } from '@/api/names'
 import { useRefreshPortfolio } from '@/api/queries'
@@ -7,6 +8,7 @@ import { AllocationBar, DriftBars } from '@/charts'
 import { dateTime, money, signedMoney } from '@/lib/format'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/ui/Button'
+import { CountUp } from '@/ui/CountUp'
 import { Notice } from '@/ui/Notice'
 import { Delta, Stat, StatGroup } from '@/ui/Stat'
 import { Tag } from '@/ui/Tag'
@@ -21,13 +23,13 @@ export default function OverviewPage() {
     const gain = p.total_value - p.net_contributions
 
     return (
-        <article className={styles.section} aria-labelledby="overview-title">
+        <article className={clsx(styles.section, 'stagger')} aria-labelledby="overview-title">
             <h1 id="overview-title" className={styles.title}>
                 {overviewSentence(p)}
             </h1>
             <div className={styles.subsection}>
                 <StatGroup className={styles.stats}>
-                    <Stat size="lg" label="Value" provenance="measured" value={money(p.total_value)} detail={p.valued_at ? `At closing prices, ${dateTime(p.valued_at)}` : undefined} />
+                    <Stat size="lg" label="Value" provenance="measured" value={<CountUp value={p.total_value} format={money} />} detail={p.valued_at ? `At closing prices, ${dateTime(p.valued_at)}` : undefined} />
                     <Stat label="Paid in" value={money(p.net_contributions)} />
                     <Stat label="Gain or loss" provenance="measured" value={signedMoney(gain)} detail={<Delta value={p.total_return_pct} />} />
                 </StatGroup>

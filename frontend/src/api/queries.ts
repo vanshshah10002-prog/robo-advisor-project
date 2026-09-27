@@ -31,6 +31,7 @@ export const keys = {
     quizMinimal: ['quiz', 'minimal'] as const,
     riskProfile: (userId: number) => ['risk-profile', userId] as const,
     userPortfolios: (userId: number) => ['portfolios', 'user', userId] as const,
+    archivedPortfolios: (userId: number) => ['portfolios', 'user', userId, 'archived'] as const,
     portfolio: (id: number) => ['portfolio', id] as const,
     portfolioDetail: (id: number) => ['portfolio', id, 'detail'] as const,
     performance: (id: number) => ['portfolio', id, 'performance'] as const,
@@ -90,6 +91,13 @@ export const useUserPortfolios = (userId: number | null) =>
     useQuery({
         queryKey: keys.userPortfolios(userId ?? -1),
         queryFn: ({ signal }) => api.listUserPortfolios(userId as number, { signal }),
+        enabled: userId !== null,
+    })
+
+export const useArchivedPortfolios = (userId: number | null) =>
+    useQuery({
+        queryKey: keys.archivedPortfolios(userId ?? -1),
+        queryFn: ({ signal }) => api.listArchivedPortfolios(userId as number, { signal }),
         enabled: userId !== null,
     })
 
@@ -235,6 +243,17 @@ export const useCreatePortfolio = () => {
     return useMutation({
         mutationFn: (body: PortfolioRequest) => api.createPortfolio(body),
         onSuccess: (_created, body) => qc.invalidateQueries({ queryKey: keys.userPortfolios(body.user_id) }),
+    })
+}
+
+/** Archiving moves a portfolio between lists and changes what its workspace says; its figures are untouched. */
+export const useSetArchived = () => {
+    const qc = useQueryClient()
+    return useMutation({
+        mutationFn: ({ portfolioId, archived }: { portfolioId: number; archived: boolean }) =>
+            archived ? api.archivePortfolio(portfolioId) : api.restorePortfolio(portfolioId),
+        onSuccess: (_result, { portfolioId }) =>
+            Promise.all([qc.invalidateQueries({ queryKey: keys.portfolioDetail(portfolioId) }), qc.invalidateQueries({ queryKey: ['portfolios'] })]),
     })
 }
 

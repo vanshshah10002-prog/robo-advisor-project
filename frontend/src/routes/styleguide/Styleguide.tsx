@@ -3,7 +3,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { AllocationBar, DataTable, DriftBars, FanChart, FundCell, LineChart, type Column } from '@/charts'
 import { contrast } from '@/lib/contrast'
 import { money, moneyCompact, percent, signedPercent } from '@/lib/format'
-import { CATEGORICAL, DEFENSIVE_RAMP, GROWTH_RAMP } from '@/lib/palette'
+import { CATEGORICAL } from '@/lib/palette'
+import { usePageTheme } from '@/lib/theme'
 import { usePageTitle } from '@/lib/usePageTitle'
 import { Button } from '@/ui/Button'
 import { Field, TextInput } from '@/ui/Field'
@@ -20,14 +21,32 @@ import {
 } from './specimen'
 import styles from './Styleguide.module.css'
 
-const PAPER = '#f7f4ed'
-
 const SWATCHES = [
-    { group: 'Surfaces', items: [['Paper', 'color-paper', PAPER], ['Sheet', 'color-sheet', '#fdfbf7'], ['Sunk', 'color-sunk', '#ede9e1']] },
-    { group: 'Ink', items: [['Ink', 'color-ink', '#1f1b16'], ['Ink 2', 'color-ink-2', '#534c44'], ['Ink 3', 'color-ink-3', '#69625a']] },
-    { group: 'Rules', items: [['Hairline', 'color-rule', '#dad3c9'], ['Control edge', 'color-rule-strong', '#8d857a']] },
-    { group: 'Meaning', items: [['Action', 'color-accent', '#284e99'], ['Loss', 'color-loss', '#9e2c2c'], ['OK', 'color-ok', '#266739'], ['Caution', 'color-warn', '#945a00']] },
+    { group: 'Surfaces', items: [['Paper', 'color-paper'], ['Sheet', 'color-sheet'], ['Sunk', 'color-sunk']] },
+    { group: 'Ink', items: [['Ink', 'color-ink'], ['Ink 2', 'color-ink-2'], ['Ink 3', 'color-ink-3']] },
+    { group: 'Rules', items: [['Hairline', 'color-rule'], ['Control edge', 'color-rule-strong']] },
+    { group: 'Meaning', items: [['Action', 'color-accent'], ['Loss', 'color-loss'], ['OK', 'color-ok'], ['Caution', 'color-warn']] },
 ] as const
+
+const steps = (name: string, count: number) => Array.from({ length: count }, (_, i) => `chart-${name}-${i + 1}`)
+
+const RAMPS = [
+    { name: 'Growth', tokens: steps('growth', 5) },
+    { name: 'Defensive', tokens: steps('defensive', 5) },
+    { name: 'Comparison (fixed order)', tokens: steps('cat', 6) },
+] as const
+
+const HEX = /^#[0-9a-f]{6}$/i
+
+/**
+ * The value each colour token has on the page right now, read back from the
+ * browser so this page shows the theme in effect, not a copy of it.
+ */
+function useTokenValues(): { theme: string; value: (token: string) => string } {
+    const theme = usePageTheme()
+    const style = getComputedStyle(document.documentElement)
+    return { theme, value: (token) => style.getPropertyValue(`--${token}`).trim().toLowerCase() }
+}
 
 function grade(ratio: number): string {
     if (ratio >= 7) return 'AAA text'
@@ -48,26 +67,33 @@ function Section({ id, title, intro, children }: { id: string; title: string; in
     )
 }
 
+function Swatch({ name, token, value, paper }: { name: string; token: string; value: string; paper: string }) {
+    const ratio = HEX.test(value) && HEX.test(paper) ? contrast(value, paper) : null
+    return (
+        <li className={styles.swatch}>
+            <span className={styles.chip} style={{ background: `var(--${token})` }} />
+            <span className={styles.swatchName}>{name}</span>
+            <code className={styles.swatchMeta}>--{token}</code>
+            <span className={styles.swatchMeta}>
+                {value}
+                {ratio !== null && ` · ${ratio.toFixed(1)}:1 ${grade(ratio)}`}
+            </span>
+        </li>
+    )
+}
+
 function Swatches() {
+    const { theme, value } = useTokenValues()
     return (
         <div className={styles.swatchGroups}>
+            <p className={styles.swatchNote}>Values and contrast on paper for the {theme} theme, read from the page as it is now.</p>
             {SWATCHES.map(({ group, items }) => (
                 <div key={group}>
                     <h3 className="label">{group}</h3>
                     <ul className={styles.swatches}>
-                        {items.map(([name, token, hex]) => {
-                            const ratio = contrast(hex, PAPER)
-                            return (
-                                <li key={token} className={styles.swatch}>
-                                    <span className={styles.chip} style={{ background: hex }} />
-                                    <span className={styles.swatchName}>{name}</span>
-                                    <code className={styles.swatchMeta}>--{token}</code>
-                                    <span className={styles.swatchMeta}>
-                                        {hex} · {ratio.toFixed(1)}:1 {grade(ratio)}
-                                    </span>
-                                </li>
-                            )
-                        })}
+                        {items.map(([name, token]) => (
+                            <Swatch key={token} name={name} token={token} value={value(token)} paper={value('color-paper')} />
+                        ))}
                     </ul>
                 </div>
             ))}
@@ -75,19 +101,24 @@ function Swatches() {
     )
 }
 
-function Ramp({ name, colours }: { name: string; colours: readonly string[] }) {
+function Ramps() {
+    const { value } = useTokenValues()
     return (
-        <div className={styles.ramp}>
-            <span className="label">{name}</span>
-            <div className={styles.rampSteps}>
-                {colours.map((c, i) => (
-                    <span key={c} style={{ background: c }} title={c}>
-                        <span className="visually-hidden">
-                            Step {i + 1}: {c}
-                        </span>
-                    </span>
-                ))}
-            </div>
+        <div className={styles.ramps}>
+            {RAMPS.map(({ name, tokens }) => (
+                <div key={name} className={styles.ramp}>
+                    <span className="label">{name}</span>
+                    <div className={styles.rampSteps}>
+                        {tokens.map((token, i) => (
+                            <span key={token} style={{ background: `var(--${token})` }} title={value(token)}>
+                                <span className="visually-hidden">
+                                    Step {i + 1}: {value(token)}
+                                </span>
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            ))}
         </div>
     )
 }
@@ -215,12 +246,13 @@ function Controls() {
 
 export default function Styleguide() {
     usePageTitle('Style guide')
+    const theme = usePageTheme()
     return (
         <article className={styles.page}>
             <header className={styles.masthead}>
                 <div className={styles.dateline}>
                     <span className="label">Design system</span>
-                    <span className="label">Light theme · September 2026</span>
+                    <span className="label">{theme === 'dark' ? 'Dark' : 'Light'} theme · September 2026</span>
                 </div>
                 <h1 className={styles.title}>
                     The <em>Statement</em>
@@ -250,11 +282,7 @@ export default function Styleguide() {
             </Section>
 
             <Section id="sg-holdings" title="Holdings colour" intro="Two ordinal ramps, chosen to stay distinct under red–green colour blindness. Segments are always separated and labelled.">
-                <div className={styles.ramps}>
-                    <Ramp name="Growth" colours={GROWTH_RAMP} />
-                    <Ramp name="Defensive" colours={DEFENSIVE_RAMP} />
-                    <Ramp name="Comparison (fixed order)" colours={CATEGORICAL} />
-                </div>
+                <Ramps />
             </Section>
 
             <Section id="sg-type" title="Type" intro="Newsreader for headlines and headline figures; Schibsted Grotesk for everything you read or operate.">

@@ -264,17 +264,130 @@ opens with a sentence built from its own figures, and each has its own route, ti
     bars' figures spilling 24px past a phone's edge.
   - `tests/test_workspace.py` covers user ids, sleeves and the saved-portfolio projection.
 
-## 8. Known issues carried into later phases
+## 8. Phase 5: polish and QA (done)
 
-| Issue | Where | Phase |
+### Dark theme
+
+"Appearance" in the small print offers Match device, Light and Dark. The choice is kept in this
+browser (`ukra.theme`). The dark theme is warm near-black paper with warm ink, not an inversion.
+It redefines only the semantic, chart and shadow tokens, under `:root[data-theme='dark']`.
+`palette.test.ts` enforces two rules:
+- the dark block redefines nothing else;
+- every literal light colour has a dark counterpart.
+
+It is measured by the same rules as the light theme, in the same test for both blocks:
+
+| Check | Light | Dark |
 |---|---|---|
-| Archiving a portfolio is not offered: the backend has no way to hide or close one | `backend/api/routes/portfolio.py` | 5, if wanted (needs a field and a route) |
+| Ink, ink 2, ink 3 on paper | 15.6, 7.7, 5.5:1 (ink 3 is 5.0:1 on sunk) | 15.5, 10.1, 6.4:1 (ink 3 is 6.8:1 on sunk) |
+| Accent on paper | 7.2:1 | 8.6:1 |
+| Control boundary on paper | 3.3:1 | 3.9:1 |
+| Growth vs defensive, same step, CIEDE2000 under simulated deuteranopia / protanopia | worst 24.4 / 18.3 | worst 24.8 / 17.9 |
+| Ramps | darkest step first, ΔL ≥ 0.06 | brightest step first, ΔL ≥ 0.06 |
+| Comparison colours on paper | 2.9–6.9:1 (slot 3 always labelled) | 7.1–9.7:1, within one lightness band |
+| Ink on every heatmap shade | ≥ 4.5:1 | ≥ 4.5:1 |
+
+The simulations are Machado et al. (2009) at full severity. The check script is not in the
+repository; the contrast rules are, in `palette.test.ts`.
+
+- **Charts follow the theme.**
+  - `palette.ts` hands out token references (`var(--chart-cat-1)`), not hexes.
+  - Marks draw them through `style`, because SVG presentation attributes do not reliably resolve
+    `var()`. A theme switch therefore recolours every mark without re-rendering.
+  - Heatmap cells mix the two heat tokens with `color-mix()`.
+  - Each theme's literal hexes stay in `THEME_COLOURS`, for the tests.
+- **No flash of the wrong theme.**
+  - An inline script in `index.html` sets `data-theme` before first paint, from the saved choice
+    or the device setting.
+  - It also sets the browser's `theme-color` and `color-scheme`. `src/lib/theme.ts` takes over
+    after that, and follows a choice made in another tab.
+  - `theme.test.tsx` runs the real script.
+  - A browser test (`e2e/theme.spec.ts`) blocks the app's own code on reload and checks that the
+    theme still arrives.
+- **The style guide shows the theme in effect.** It reads each token's value back from the page
+  instead of printing a copy of the light hexes.
+
+### Archive
+
+- **What it does.** A portfolio can be archived from the list. That takes it off the list and
+  deletes nothing: it still opens, with its ledger and history.
+- **On the list.** A notice confirms the change and offers Undo. It takes focus, because the button
+  that was pressed has gone with its row. Archived portfolios are listed underneath, with Restore.
+- **While a request runs,** the pressed row's button shows it is working and the other rows wait.
+- **When everything is archived,** the list says so rather than that nothing was ever opened.
+- **"Your portfolio".** If the archived portfolio was the one the front page links to, that link
+  moves to the newest portfolio left, or goes away.
+- **In the workspace,** an archived portfolio says so at the top, with Restore.
+- **Backend:**
+  - `POST /portfolio/{id}/archive` and `/restore`. Both are safe to repeat, and archiving again
+    keeps the first date.
+  - `GET /portfolios/user/{id}/archived`, a path of its own so request stubs cannot confuse it
+    with the list.
+  - `archived` and `archived_at` on the detail, and `archived_at` on list rows.
+  - A new `archived_at` column, added to existing databases by `_add_missing_columns`.
+  - A row whose active flag was never set counts as on the list, so no portfolio falls between the
+    two lists. Archiving is keyed off `archived_at`.
+  - `tests/test_archive.py`, including a test that an archived portfolio still takes money.
+
+### Motion
+
+- **One staged reveal per page.** The first blocks of each workspace section, the list, the result
+  and the proposal rise into place in turn (`.stagger` in `base.css`). Everything is in place by
+  540 ms.
+- **The Overview's value settles into place** over 0.7 s, from nine-tenths of the figure
+  (`CountUp`). While it counts, the moving digits are hidden from assistive technology, which reads
+  the figure once.
+- **Reduced motion.** Both are off when the reader asks for less motion, and the count is also off
+  where the browser cannot say. The reduced-motion rule now also removes animation delays.
+
+### Accessibility
+
+- **axe.** `e2e/a11y.spec.ts` runs axe over 12 pages, in both themes, on desktop and on a phone,
+  against WCAG 2.2 A and AA. The dark runs reach the theme the way a reader would, through the
+  device setting. There are no violations.
+- **What axe found:** one violation. The Activity trades table was wider than its panel on desktop,
+  so it scrolled, but a keyboard could not reach it to scroll.
+- **The fix.** `DataTable` now measures itself. While it scrolls sideways it is a named region in
+  the tab order, with a focus ring. Tables that fit add no tab stop.
+
+### Screenshots and copy
+
+- **Screenshots.** Every page at 390, 768 and 1280 px, in both themes, against the local API.
+  Nothing scrolls sideways at any width.
+- **What they found.** On Performance, "Return since opening −0.1%" sat beside "Gain +£57" with
+  nothing to say why. Both are right: the return runs to the first recorded close, after opening
+  costs; the gain uses the latest prices. Each now says which moment it is measured at, and the
+  one-close headline was reworded.
+- **Copy.** A sweep for pleas, exclamations, "click here" and US spellings found none. The theme is
+  called "dark" everywhere, matching the switch.
+
+### Tests
+
+At the end of the phase:
+- 584 unit tests, covering 99.7% of statements and 95.2% of branches;
+- 72 browser checks;
+- 172 backend tests.
+
+## 9. Known issues
+
+| Issue | Where | When |
+|---|---|---|
 | VAPX.L (Asia-Pacific ex Japan) carries an estimated yearly swing of about 26% before calibration (30% after), well above the region's usual 15–20%, so it takes 3.5% of the risk for 1.4% of the money. It may be a price-data problem (it is quoted in dollars) | `backend/data`, the price cache | Investigate |
 | Registry entries marked "Corrected Sep 2026 from knowledge of the LSE listing" should be checked against the issuers' factsheets. Two links were wrong; others may be | `backend/data/uk_etf_registry.json` | Data check |
 | The portfolio list fetches each portfolio's full history to draw its trend line: one request per row. Fine for a handful; with many portfolios, add a short trend to `/portfolios/user/{id}` or load it as rows scroll into view | `routes/portfolio/PortfoliosPage.tsx` | When lists grow |
+| An archived portfolio still accepts money and rebalances. Archiving only takes it off the list | `backend/api/routes` | If archived should mean closed |
+| axe covers what can be checked automatically. No one has yet been through the journey with a screen reader (NVDA, VoiceOver) | the whole app | Before release |
+| Heatmap shading uses `color-mix()` (Chrome 111, Safari 16.2, Firefox 113). Older browsers show the cells unshaded, with every figure still printed | `charts/Heatmap.tsx` | Acceptable |
+| The onboarding walk-through unit test can pass five seconds under a full parallel run; it passed on rerun | `routes/start/start.test.tsx` | Watch |
 | Without a risk profile in this browser, the outlook starts at 10 years rather than the investor's own horizon | `routes/portfolio/outlook` | Acceptable; the box can be changed |
 | Local test data: user "Phase Three", its risk profiles and portfolio 20 were created while checking the journey against the real API | local database | Delete if unwanted |
 | All 19 older local portfolios predate snapshots and the ledger replay, so construction and history are empty for them | local database | Open a new portfolio to see both |
+
+Resolved in Phase 5:
+- no way to archive a portfolio;
+- no dark theme;
+- a scrolling table that the keyboard could not reach;
+- the unexplained difference between Performance's return and gain.
 
 Resolved in Phase 4:
 - matching users by name;
@@ -289,11 +402,14 @@ Resolved in Phase 3:
 - the 931 kB bundle;
 - the legacy client and store.
 
-## 9. Remaining phases
+## 10. After the overhaul
 
-- **Phase 5:** polish and QA, then a dark theme that redefines only the semantic tokens.
+The five phases are done. Worth doing next:
+- a screen-reader pass through the whole journey;
+- the VAPX.L and registry data checks above;
+- the Figma steps below, once there is an editor seat.
 
-## 10. Figma
+## 11. Figma
 
 - Figma is connected: the "Vansh" account, Starter plan, with a **View** seat.
 - A View seat on Starter cannot edit design files, and MCP calls are rate-limited. Nothing has
@@ -306,7 +422,7 @@ Resolved in Phase 3:
   3. **Draw the new journey as a FigJam flow** (`figma-generate-diagram`).
   4. **Link the primitives with Code Connect** once they are stable.
 
-## 11. Contract samples
+## 12. Contract samples
 
 `frontend/src/test/contract/*.json` are responses recorded from the running API.
 `src/api/contract.test.ts` parses each one with the schema the app uses, so a backend change
@@ -321,4 +437,4 @@ start the API (`make backend`) and record again:
 | `universe.json` | `GET /api/universe?portfolio_id=19`, with SGLP.L's factsheet link cleared by hand after the registry fix |
 | `track-record.json` | `GET /api/strategy/track-record?risk=5` |
 | `monte-carlo.json` | `POST /api/monte-carlo` with £50,000, £250 a month, 15 years, 500 paths, `annual_return` 0.065, `annual_volatility` 0.089, `goal_amount` 150,000 and `real_terms: true`. The contract test checks that paid-in counts each payment at face value. |
-| `portfolios.json`, `risk-profile.json` | `GET /api/portfolios/user/1`, `GET /api/risk-profile/1` |
+| `portfolios.json`, `risk-profile.json` | `GET /api/portfolios/user/1` (the first two rows; recorded again after `archived_at` was added), `GET /api/risk-profile/1` |

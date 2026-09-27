@@ -37,3 +37,23 @@ export async function returningBrowser(page: Page, lastPortfolioId: number) {
         localStorage.setItem('ukra.identity', JSON.stringify({ state: { userId: 4, lastPortfolioId: id }, version: 1 }))
     }, lastPortfolioId)
 }
+
+const point = (date: string, value: number, cumulative: number) => ({ date, value, net_contributions: 100_000, cumulative_return: cumulative })
+
+/** Fifteen months of recorded values, enough for every period and chart on Performance. */
+export const fifteenMonths = (portfolioId: number) => ({
+    portfolio_id: portfolioId,
+    points: [
+        point('2025-06-30', 100_000, 0),
+        point('2025-09-25', 104_000, 0.04),
+        point('2025-12-31', 101_000, 0.01),
+        point('2026-06-25', 108_000, 0.08),
+        point('2026-08-25', 106_920, 0.0692),
+        point('2026-09-25', 112_000, 0.12),
+    ],
+    start_date: '2025-06-30',
+    end_date: '2026-09-25',
+    time_weighted_return: 0.12,
+    reason: null,
+    unpriced_tickers: [],
+})
