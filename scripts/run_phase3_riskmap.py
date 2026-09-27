@@ -25,9 +25,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.config import MVO_RISK_FREE_RATE
 from backend.engine.asset_universe import get_ticker_map
-from backend.engine.optimizer import (
-    STRATEGIC_UNIVERSE, build_two_fund_portfolio, compute_tangent_portfolio,
-    _get_weight_bounds, build_sector_caps, _apply_sector_caps,
+from backend.engine.optimizer import STRATEGIC_UNIVERSE, _get_weight_bounds
+from backend.eval.legacy_construction import (
+    build_two_fund_portfolio, compute_tangent_portfolio, build_sector_caps, _apply_sector_caps,
 )
 from backend.data.returns import build_monthly_gbp_log_returns
 from backend.eval.models import blend_trailing_bl

@@ -4,17 +4,99 @@ Portfolio API Routes — Build & Manage Portfolios
 Handles portfolio construction, retrieval, and allocation adjustment.
 """
 
+import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.db.database import get_db, init_db
-from backend.db.models import Portfolio, Holding, User
-from backend.api.models import PortfolioRequest, PortfolioResponse, AllocationItem
-from backend.engine.optimizer import build_optimised_portfolio
-from backend.engine.asset_universe import get_primary_etf_for_class
+from backend.db.models import Portfolio, Holding, RiskProfile, User, Transaction
+from backend.db.ledger_store import mark_to_market, record_fills
+from backend.api.models import (
+    AllocationItem, ArchiveResponse, ConstructionResponse, PortfolioListItem, PortfolioRequest, PortfolioResponse,
+    PreviewAllocation, PreviewRequest, PreviewResponse,
+)
+from backend.engine.optimizer import OptimisationError, build_optimised_portfolio
+from backend.engine.asset_universe import get_etf_by_ticker
+from backend.engine.construction import (
+    construction_cache, policy_summary, scaled_allocations, snapshot_from_result,
+)
+from backend.engine.ledger import open_portfolio, valuation
+from backend.engine.policy import sleeve_of
+from backend.data.prices import get_latest_gbp_prices
 from backend.config import RISK_BANDS
 
 router = APIRouter()
+
+
+def _effective_risk(db: Session, user_id: Optional[int], requested: float) -> float:
+    """
+    The suitable risk level is the one assessed in the stored profile (with its
+    short-horizon cap and conservative adjustments). A request may ask for
+    LESS risk, never more.
+    """
+    if user_id is None:
+        return requested
+    profile = db.query(RiskProfile).filter(RiskProfile.user_id == user_id).first()
+    if profile is not None and requested > profile.composite_score:
+        return profile.composite_score
+    return requested
+
+
+def _construct(risk_score: float) -> dict:
+    """
+    The construction for this risk score, reused from a recent preview when
+    there is one, so the portfolio opened is the one the investor was shown.
+    Built per GBP 1; amounts are scaled per request.
+    """
+    try:
+        result, _ = construction_cache.get_or_build(
+            risk_score, lambda: build_optimised_portfolio(risk_score=risk_score, investment_amount=1.0),
+        )
+        return result
+    except OptimisationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimisation failed: {str(e)}")
+
+
+@router.post("/portfolio/preview", response_model=PreviewResponse)
+async def preview_portfolio(request: PreviewRequest, db: Session = Depends(get_db)):
+    """
+    Build a portfolio without opening it: allocations, expected figures and the
+    policy that shaped it. Nothing is stored and nothing is bought. Opening a
+    portfolio at the same risk level within a few hours reuses this construction.
+    """
+    risk_score = _effective_risk(db, request.user_id, request.risk_score)
+    result = _construct(risk_score)
+    allocations = []
+    for a in scaled_allocations(result, request.investment_amount):
+        etf = get_etf_by_ticker(a["ticker"])
+        allocations.append(PreviewAllocation(
+            asset_class=a["asset_class"], sleeve=sleeve_of(a["asset_class"]), ticker=a["ticker"],
+            etf_name=etf["name"] if etf else a["ticker"], weight=a["weight"],
+            amount_gbp=a["amount_gbp"], expense_ratio=a["expense_ratio"],
+        ))
+    perf = result["performance"]
+    ter = float(result.get("total_expense_ratio") or 0.0)
+    return PreviewResponse(
+        requested_risk_score=request.risk_score,
+        risk_score=risk_score,
+        capped=risk_score < request.risk_score,
+        risk_band=RISK_BANDS.get(round(risk_score), "Unknown"),
+        allocations=allocations,
+        expected_annual_return=perf["expected_return"],
+        expected_volatility=perf["volatility"],
+        sharpe_ratio=perf["sharpe_ratio"],
+        total_expense_ratio=ter,
+        annual_fund_cost_gbp=round(ter * request.investment_amount, 2),
+        risk_free_rate=result.get("risk_free_rate"),
+        policy=policy_summary(result),
+        as_of=datetime.date.today().isoformat(),
+    )
 
 
 @router.post("/portfolio", response_model=PortfolioResponse)
@@ -45,23 +127,29 @@ async def create_portfolio(
         db.add(user)
         db.flush()
 
-    # Run optimisation — robo advisor auto-selects asset classes from risk score
-    # User-provided classes are optional override only
-    try:
-        result = build_optimised_portfolio(
-            risk_score=request.risk_score,
-            investment_amount=request.investment_amount,
-            selected_asset_classes=getattr(request, 'selected_asset_classes', None),
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Optimisation failed: {str(e)}")
+    risk_score = _effective_risk(db, request.user_id, request.risk_score)
+    result = _construct(risk_score)
 
-    # Build allocation items
+    # Price every line in GBP before anything is stored: a portfolio is only
+    # opened at real prices, never at an assumed one.
+    target_by_ticker = result["ticker_weights"]
+    quotes = get_latest_gbp_prices(list(target_by_ticker))
+    missing = [t for t in target_by_ticker if t not in quotes]
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No current price for {', '.join(missing)}; portfolio not opened. Try again later.",
+        )
+    prices = {t: q[0] for t, q in quotes.items()}
+    book, fills = open_portfolio(request.investment_amount, target_by_ticker, prices)
+    val = valuation(book, prices)
+
+    excess_return = result["performance"]["expected_return"] - result["risk_free_rate"]
+
+    # Build allocation items (name taken from the ticker actually bought)
     allocations = []
-    for alloc in result["allocations"]:
-        etf = get_primary_etf_for_class(alloc["asset_class"])
+    for alloc in scaled_allocations(result, request.investment_amount):
+        etf = get_etf_by_ticker(alloc["ticker"])
         allocations.append(AllocationItem(
             asset_class=alloc["asset_class"],
             weight=alloc["weight"],
@@ -74,7 +162,7 @@ async def create_portfolio(
     # Save portfolio to database
     portfolio = Portfolio(
         user_id=request.user_id,
-        risk_score=request.risk_score,
+        risk_score=risk_score,
         target_allocations=result["weights"],
         selected_asset_classes=result.get("asset_classes_used", request.selected_asset_classes),
         investment_amount=request.investment_amount,
@@ -83,37 +171,50 @@ async def create_portfolio(
         expected_return=result["performance"]["expected_return"],
         expected_volatility=result["performance"]["volatility"],
         sharpe_ratio=result["performance"]["sharpe_ratio"],
-        alpha=result["performance"]["expected_return"] - 0.02,  # Proxy: mu - rf
+        alpha=excess_return,  # expected return over the live risk-free rate
         total_return_pct=0.0,
+        cash_gbp=book.cash,
+        net_contributions=request.investment_amount,
+        last_valued_at=datetime.datetime.utcnow(),
+        construction=snapshot_from_result(result, risk_score),
     )
     db.add(portfolio)
     db.flush()
 
-    # Save holdings
-    for alloc in result["allocations"]:
-        holding = Holding(
+    # Save holdings: units, GBP cost per unit and the price they were bought at
+    ac_by_ticker = {a["ticker"]: a["asset_class"] for a in result["allocations"]}
+    for ticker, weight in target_by_ticker.items():
+        price, as_of = quotes[ticker]
+        db.add(Holding(
             portfolio_id=portfolio.id,
-            ticker=alloc["ticker"],
-            asset_class=alloc["asset_class"],
-            quantity=alloc["amount_gbp"],  # Simplified: store as value
-            target_weight=alloc["weight"],
-            current_weight=alloc["weight"],
-        )
-        db.add(holding)
+            ticker=ticker,
+            asset_class=ac_by_ticker.get(ticker, "unknown"),
+            quantity=book.units.get(ticker, 0.0),
+            average_cost=book.avg_cost.get(ticker, 0.0),
+            target_weight=weight,
+            current_weight=val["weights"].get(ticker, 0.0),
+            current_price=price,
+            price_as_of=datetime.datetime.combine(as_of, datetime.time()),
+        ))
 
+    db.add(Transaction(
+        portfolio_id=portfolio.id, ticker="CASH", action="deposit", quantity=0.0,
+        price=1.0, value=request.investment_amount, notes="Initial investment",
+    ))
+    record_fills(db, portfolio.id, fills, notes="Initial purchase")
     db.commit()
 
-    risk_band = RISK_BANDS.get(round(request.risk_score), "Unknown")
+    risk_band = RISK_BANDS.get(round(risk_score), "Unknown")
 
     return PortfolioResponse(
         portfolio_id=portfolio.id,
-        risk_score=request.risk_score,
+        risk_score=risk_score,
         risk_band=risk_band,
         allocations=allocations,
         expected_annual_return=result["performance"]["expected_return"],
         expected_volatility=result["performance"]["volatility"],
         sharpe_ratio=result["performance"]["sharpe_ratio"],
-        alpha=result["performance"]["expected_return"] - 0.02,
+        alpha=excess_return,
         total_return_pct=0.0,
         total_expense_ratio=result["total_expense_ratio"],
         investment_amount=request.investment_amount,
@@ -146,15 +247,25 @@ async def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
         "target_allocations": portfolio.target_allocations,
         "selected_asset_classes": portfolio.selected_asset_classes,
         "investment_amount": portfolio.investment_amount,
-        "monthly_contribution": portfolio.monthly_contribution,
-        "uses_isa": portfolio.uses_isa,
+        "monthly_contribution": portfolio.monthly_contribution or 0.0,
+        "uses_isa": bool(portfolio.uses_isa),
         "expected_return": portfolio.expected_return,
         "expected_volatility": portfolio.expected_volatility,
         "sharpe_ratio": portfolio.sharpe_ratio,
+        "cash": portfolio.cash_gbp or 0.0,
+        "net_contributions": portfolio.net_contributions or 0.0,
+        "total_return_pct": portfolio.total_return_pct or 0.0,
+        "last_valued_at": portfolio.last_valued_at.isoformat() if portfolio.last_valued_at else None,
+        "archived": portfolio.is_active is False,  # an unset flag counts as on the list
+        "archived_at": portfolio.archived_at.isoformat() if portfolio.archived_at else None,
         "holdings": [
             {
                 "ticker": h.ticker,
                 "asset_class": h.asset_class,
+                "units": h.quantity,
+                "average_cost": h.average_cost,
+                "current_price": h.current_price,
+                "price_as_of": h.price_as_of.date().isoformat() if h.price_as_of else None,
                 "target_weight": h.target_weight,
                 "current_weight": h.current_weight,
             }
@@ -163,79 +274,131 @@ async def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/portfolios/user/{user_id}")
+@router.get("/portfolios/user/{user_id}", response_model=list[PortfolioListItem])
 async def get_user_portfolios(user_id: int, db: Session = Depends(get_db)):
     """
-    List all portfolios for a user.
-
-    Parameters:
-        user_id (int): User ID.
-
-    Returns:
-        list[dict]: Summary of each portfolio.
+    A user's portfolios, newest first, each valued at its last stored prices
+    (no network). A portfolio never valued since the ledger was introduced
+    reports no value rather than a guessed one.
     """
+    return _list_portfolios(db, user_id, archived=False)
+
+
+@router.get("/portfolios/user/{user_id}/archived", response_model=list[PortfolioListItem])
+async def get_archived_portfolios(user_id: int, db: Session = Depends(get_db)):
+    """The portfolios a user has archived, newest first, valued as on their list."""
+    return _list_portfolios(db, user_id, archived=True)
+
+
+def _list_portfolios(db: Session, user_id: int, archived: bool) -> list[PortfolioListItem]:
+    from backend.db.ledger_store import is_legacy_holding, last_prices, load_book
+
+    # An unset flag counts as on the list, so no portfolio is ever in neither list.
+    on_list = Portfolio.is_active.is_not(False)
     portfolios = db.query(Portfolio).filter(
         Portfolio.user_id == user_id,
-        Portfolio.is_active == True,
-    ).all()
+        ~on_list if archived else on_list,
+    ).order_by(Portfolio.created_at.desc()).all()
 
-    return [
-        {
-            "portfolio_id": p.id,
-            "name": p.name,
-            "risk_score": p.risk_score,
-            "investment_amount": p.investment_amount,
-            "expected_return": p.expected_return,
-            "created_at": p.created_at.isoformat() if p.created_at else None,
-        }
-        for p in portfolios
-    ]
+    items = []
+    for p in portfolios:
+        holdings = db.query(Holding).filter(Holding.portfolio_id == p.id).all()
+        total_value = None
+        if not any(is_legacy_holding(h) for h in holdings):
+            book = load_book(p, holdings)
+            prices = last_prices(holdings)
+            if all(t in prices for t in book.units):
+                total_value = round(valuation(book, prices)["total"], 2)
+        contrib = p.net_contributions or None
+        items.append(PortfolioListItem(
+            portfolio_id=p.id,
+            name=p.name,
+            risk_score=p.risk_score,
+            investment_amount=p.investment_amount,
+            monthly_contribution=p.monthly_contribution or 0.0,
+            uses_isa=bool(p.uses_isa),
+            expected_return=p.expected_return,
+            created_at=p.created_at.isoformat() if p.created_at else None,
+            total_value=total_value,
+            net_contributions=contrib,
+            total_return_pct=(total_value - contrib) / contrib if total_value is not None and contrib else None,
+            last_valued_at=p.last_valued_at.isoformat() if p.last_valued_at else None,
+            holdings_count=sum(1 for h in holdings if (h.quantity or 0.0) > 0),
+            archived_at=p.archived_at.isoformat() if p.archived_at else None,
+        ))
+    return items
+
+
+def _set_archived(db: Session, portfolio_id: int, archived: bool) -> ArchiveResponse:
+    """Archives or restores; repeating either is harmless and keeps the first archive date."""
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if archived and portfolio.archived_at is None:
+        portfolio.is_active = False
+        portfolio.archived_at = datetime.datetime.utcnow()
+    elif not archived:
+        portfolio.is_active = True
+        portfolio.archived_at = None
+    db.commit()
+    return ArchiveResponse(
+        portfolio_id=portfolio.id,
+        archived_at=portfolio.archived_at.isoformat() if portfolio.archived_at else None,
+    )
+
+
+@router.post("/portfolio/{portfolio_id}/archive", response_model=ArchiveResponse)
+async def archive_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
+    """Takes a portfolio off its owner's list. Nothing is deleted: it still opens, and can be restored."""
+    return _set_archived(db, portfolio_id, archived=True)
+
+
+@router.post("/portfolio/{portfolio_id}/restore", response_model=ArchiveResponse)
+async def restore_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
+    """Puts an archived portfolio back on its owner's list."""
+    return _set_archived(db, portfolio_id, archived=False)
+
+
+@router.get("/portfolio/{portfolio_id}/construction", response_model=ConstructionResponse)
+async def get_construction(portfolio_id: int, db: Session = Depends(get_db)):
+    """
+    How the portfolio was built, as recorded when it was opened: per-fund
+    estimates, correlations, the policy and the efficient frontier. Portfolios
+    opened before this was recorded return `recorded: false`.
+    """
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    snapshot = portfolio.construction
+    return ConstructionResponse(portfolio_id=portfolio.id, recorded=snapshot is not None, snapshot=snapshot)
 
 
 @router.post("/portfolio/{portfolio_id}/refresh")
 async def refresh_portfolio_prices(portfolio_id: int, db: Session = Depends(get_db)):
     """
-    Refresh current market prices for all holdings and calculate real-time performance.
-    """
-    from backend.data.market_data import get_current_price
-    import datetime
+    Mark the portfolio to market at the latest GBP prices.
 
+    Value = units × price for each holding, plus cash. Return is measured on
+    net contributions. Holdings that could not be priced keep their last price
+    and are listed in `stale_tickers`.
+    """
     portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
     holdings = db.query(Holding).filter(Holding.portfolio_id == portfolio_id).all()
-    
-    current_total_value = 0.0
-    for holding in holdings:
-        price = get_current_price(holding.ticker)
-        if price:
-            holding.current_price = price
-            # In this simplified model, we store 'quantity' as the initial GBP amount 
-            # to calculate return easily without requiring a full brokerage ledger.
-            # current_value = (initial_gbp / initial_price) * current_price
-            # But the 'quantity' field in our DB was populated with amount_gbp in create_portfolio.
-            # So current_value = quantity * (current_price / initial_price_at_creation)
-            # Since we don't store initial_price_at_creation explicitly in Holding yet, 
-            # we'll assume the price was fetched and stored during creation in a real system.
-            # For this MVP, we'll simulate the return by comparing current vs expected.
-            
-            # SIMULATION: If we don't have historical purchase price, we'll use a random drift 
-            # for the demo or try to fetch price from creation date.
-            # Better logic: calculate % change if possible, otherwise use a placeholder.
-            holding.last_updated = datetime.datetime.utcnow()
-    
-    # Simple mockup of return for UI demo if no historical price mapping exists
-    # In production, we'd fetch price exactly at portfolio.created_at
-    days_since = (datetime.datetime.utcnow() - portfolio.created_at).days
-    simulated_return = (portfolio.expected_return / 365.0) * days_since
-    portfolio.total_return_pct = simulated_return
-    
+    val = mark_to_market(portfolio, holdings, fetch=True)
     db.commit()
-    
+
     return {
         "portfolio_id": portfolio.id,
-        "total_return_pct": portfolio.total_return_pct,
-        "status": "refreshed"
+        "total_value": round(val["total"], 2),
+        "invested_value": round(val["invested"], 2),
+        "cash": round(val["cash"], 2),
+        "net_contributions": round(val["net_contributions"], 2),
+        "total_return_pct": val["total_return_pct"],
+        "stale_tickers": val["stale_tickers"],
+        "unpriced_tickers": val["unpriced_tickers"],
+        "valued_at": portfolio.last_valued_at.isoformat(),
+        "status": "refreshed",
     }
-

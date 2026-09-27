@@ -32,10 +32,40 @@ logger = logging.getLogger(__name__)
 _MONTH_END = "ME"
 
 
-def _ticker_currency(ticker: str) -> str:
-    """Look up a ticker's quoting currency from the registry (default GBP)."""
+def _ticker_currency(ticker: str, prices: Optional[pd.DataFrame] = None) -> str:
+    """
+    The currency a ticker's prices are quoted in: the currency detected from
+    Yahoo when the prices were fetched, else the registry's `currency`, else GBP.
+    """
+    detected = prices.attrs.get("currency") if prices is not None else None
+    if detected:
+        return detected
     etf = get_etf_by_ticker(ticker)
     return (etf.get("currency") if etf else "GBP") or "GBP"
+
+
+def has_usable_history(
+    ticker: str,
+    min_months: int = 36,
+    max_stale_days: int = 95,
+    period_years: int = 10,
+) -> bool:
+    """
+    True if the ticker has at least `min_months` month-end prices and a price
+    within the last `max_stale_days` days — i.e. it can be estimated and is
+    still trading. Used to fall back to the next ETF in an asset class.
+    """
+    df = get_or_fetch_prices(ticker, fetch_prices_yfinance, period_years)
+    if df is None or df.empty or "Close" not in df.columns:
+        return False
+    close = df["Close"].dropna()
+    if close.empty:
+        return False
+    idx = pd.to_datetime(close.index)
+    if (pd.Timestamp.today().normalize() - idx.max()).days > max_stale_days:
+        return False
+    months = pd.Series(close.values, index=idx).resample(_MONTH_END).last().dropna()
+    return len(months) >= min_months
 
 
 def build_monthly_gbp_prices(
@@ -70,7 +100,7 @@ def build_monthly_gbp_prices(
         close = close[~close.index.duplicated(keep="last")].sort_index()
 
         # FX-convert to GBP (unhedged) BEFORE resampling
-        currency = _ticker_currency(ticker)
+        currency = _ticker_currency(ticker, df)
         gbp_close = convert_to_gbp(close, currency, period_years)
 
         # Month-end sampling

@@ -46,20 +46,41 @@ _AUM_DEFAULTS = {
 # RETURN MODELS
 # =============================================================================
 
-def log_monthly_to_annual_arith(mean_monthly_log: pd.Series) -> pd.Series:
-    """Convert mean monthly log returns → annual arithmetic returns."""
+def log_monthly_to_annual_geometric(mean_monthly_log: pd.Series) -> pd.Series:
+    """
+    Mean monthly log return → annual GEOMETRIC (compound) return, exp(12μ) − 1.
+    This is a growth rate, not the arithmetic mean mean-variance needs; see
+    `annual_arithmetic_mean`.
+    """
     return np.exp(mean_monthly_log * 12.0) - 1.0
+
+
+# Legacy name kept for the research scripts; it has always been geometric.
+log_monthly_to_annual_arith = log_monthly_to_annual_geometric
+
+
+def annual_arithmetic_mean(monthly_log_returns: pd.DataFrame) -> pd.Series:
+    """
+    Annual arithmetic expected return from monthly log returns (lognormal):
+        E[1 + R_annual] = exp(12μ + 12σ²/2)
+    i.e. the geometric rate plus roughly σ²/2 — the input mean-variance
+    optimisation expects. Using the geometric rate instead understates
+    volatile assets by about σ²/2 (≈1.3%/yr at 16% vol) relative to cash.
+    """
+    mu = monthly_log_returns.mean()
+    var = monthly_log_returns.var()
+    return np.exp(12.0 * mu + 6.0 * var) - 1.0
 
 
 def mean_historical(train_log_returns: pd.DataFrame) -> pd.Series:
     """Trailing historical mean (annual arithmetic)."""
-    return log_monthly_to_annual_arith(train_log_returns.mean())
+    return annual_arithmetic_mean(train_log_returns)
 
 
 def ewma_historical(train_log_returns: pd.DataFrame, halflife: int = 24) -> pd.Series:
-    """Exponentially-weighted trailing mean (annual arithmetic)."""
+    """Exponentially-weighted trailing mean (annual geometric; research only)."""
     ewm_mean = train_log_returns.ewm(halflife=halflife, min_periods=12).mean().iloc[-1]
-    return log_monthly_to_annual_arith(ewm_mean)
+    return log_monthly_to_annual_geometric(ewm_mean)
 
 
 def market_caps_for(tickers: list[str]) -> pd.Series:
@@ -150,6 +171,96 @@ def blend_trailing_bl(
     bl = black_litterman(train_log_returns, benchmark, risk_free_annual)
     idx = hist.index.union(bl.index)
     return (w_trailing * hist.reindex(idx) + (1 - w_trailing) * bl.reindex(idx)).dropna()
+
+
+def reference_weights(tickers: list[str], asset_class_of: dict[str, str]) -> pd.Series:
+    """
+    Neutral weights for the prior from REFERENCE_MARKET_WEIGHTS, renormalised
+    over the asset classes present. Tickers outside the reference get 0 (they
+    are still priced through their covariance with the reference portfolio).
+    If none of the tickers is in the reference, equal weights are used.
+    """
+    from backend.config import REFERENCE_MARKET_WEIGHTS
+
+    w = pd.Series({t: REFERENCE_MARKET_WEIGHTS.get(asset_class_of.get(t, ""), 0.0) for t in tickers})
+    if w.sum() <= 0:
+        return pd.Series(1.0 / len(tickers), index=tickers)
+    return w / w.sum()
+
+
+def equilibrium_returns(
+    cov_annual: pd.DataFrame,
+    w_ref: pd.Series,
+    risk_free_annual: float,
+    risk_aversion: Optional[float] = None,
+) -> pd.Series:
+    """
+    Reverse-optimised equilibrium returns: E[R] = rf + λ·Σ·w_ref (He & Litterman).
+    With the same λ in a quadratic-utility optimiser and no constraints, the
+    optimal portfolio is w_ref itself.
+    """
+    from backend.config import BL_RISK_AVERSION
+
+    lam = BL_RISK_AVERSION if risk_aversion is None else risk_aversion
+    cols = list(cov_annual.columns)
+    w = w_ref.reindex(cols).fillna(0.0).values
+    pi = lam * (cov_annual.values @ w)
+    return risk_free_annual + pd.Series(pi, index=cols)
+
+
+def production_expected_returns(
+    monthly_log_returns: pd.DataFrame,
+    cov_annual: pd.DataFrame,
+    asset_class_of: dict[str, str],
+    expense_ratios: Optional[dict[str, float]] = None,
+    risk_free_annual: float = MVO_RISK_FREE_RATE,
+    w_trailing: Optional[float] = None,
+) -> tuple[pd.Series, dict]:
+    """
+    PRODUCTION expected returns (remediation plan §2.4):
+
+        E[R] = w_eff · trailing + (1 − w_eff) · (equilibrium − TER)
+
+    - trailing: ARITHMETIC annual mean over the COMMON window (every asset
+      measured over the same months); ETF prices are already net of fees, so
+      no fee is deducted from it.
+    - equilibrium: rf + λ·Σ·w_ref on the reference market portfolio, less TER.
+    - w_eff = w_trailing × min(1, common months / TRAILING_FULL_WEIGHT_MONTHS):
+      a shorter common history earns less trust.
+
+    Returns:
+        (mu, diagnostics)
+    """
+    from backend.config import EXPECTED_RETURN_TRAILING_WEIGHT, TRAILING_FULL_WEIGHT_MONTHS
+
+    tickers = list(cov_annual.columns)
+    R = monthly_log_returns[tickers]
+    common = R.dropna(how="any")
+    n_common = len(common)
+
+    w_base = EXPECTED_RETURN_TRAILING_WEIGHT if w_trailing is None else w_trailing
+    w_eff = w_base * min(1.0, n_common / float(TRAILING_FULL_WEIGHT_MONTHS)) if n_common >= 12 else 0.0
+
+    w_ref = reference_weights(tickers, asset_class_of)
+    prior = equilibrium_returns(cov_annual, w_ref, risk_free_annual)
+    fees = pd.Series({t: (expense_ratios or {}).get(t, 0.0) for t in tickers})
+    prior_net = prior - fees
+
+    if w_eff > 0:
+        trailing = annual_arithmetic_mean(common)
+        mu = w_eff * trailing + (1.0 - w_eff) * prior_net
+    else:
+        trailing = pd.Series(np.nan, index=tickers)
+        mu = prior_net
+
+    diagnostics = {
+        "common_months": n_common,
+        "trailing_weight": round(w_eff, 4),
+        "reference_weights": {t: round(float(v), 4) for t, v in w_ref.items()},
+        "prior": prior.round(4).to_dict(),
+        "trailing": trailing.round(4).to_dict(),
+    }
+    return mu, diagnostics
 
 
 # =============================================================================

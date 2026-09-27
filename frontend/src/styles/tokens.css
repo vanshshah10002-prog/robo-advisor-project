@@ -1,0 +1,240 @@
+/* =============================================================================
+   THE STATEMENT — design tokens (light)
+   =============================================================================
+   A portfolio reads like a well-set annual statement: warm paper, ink type,
+   hairline rules, figures in tabular columns. Colour is spent on meaning only:
+
+     growth holdings    verdigris ramp   (equities, property, gold)
+     defensive holdings ochre ramp       (bonds, cash)
+     losses             claret, always with a "−" sign
+     gains              ink, always with a "+" sign (accounting convention)
+     actions and focus  ink blue
+
+   Every colour below was measured, not eyeballed:
+     - text tokens clear WCAG 4.5:1 on paper, sheet and sunk surfaces;
+     - --color-rule-strong clears 3:1 for input boundaries (WCAG 1.4.11);
+     - both chart ramps pass the ordinal checks (monotone lightness, ΔL ≥ 0.06,
+       light end ≥ 2:1 on paper), and growth vs defensive stay ≥ 8 ΔE apart
+       under simulated deuteranopia and protanopia at equal lightness;
+     - the categorical palette passes lightness band, chroma floor, adjacent
+       CVD separation (worst 10.6) and the normal-vision floor (worst 15.6).
+   Chart hexes are mirrored in src/lib/palette.ts; a test keeps them in sync.
+
+   Semantic tokens (--color-*) are what components use. The dark theme at
+   the end redefines only these and the chart tokens, under [data-theme='dark'].
+   ============================================================================= */
+
+:root {
+    color-scheme: light;
+
+    /* ── Surfaces ─────────────────────────────────────────────────────────── */
+    --color-paper: #f7f4ed;          /* page */
+    --color-sheet: #fdfbf7;          /* raised panels, inputs */
+    --color-sunk: #ede9e1;           /* wells, table stripes, tracks */
+    --color-scrim: rgb(31 27 22 / 0.42);
+
+    /* ── Ink ──────────────────────────────────────────────────────────────── */
+    --color-ink: #1f1b16;            /* 15.6:1 on paper */
+    --color-ink-2: #534c44;          /* secondary text, 7.7:1 */
+    --color-ink-3: #69625a;          /* captions, labels, 5.5:1 paper / 5.0:1 sunk */
+    --color-ink-inverse: #fdfbf7;
+
+    /* ── Rules ────────────────────────────────────────────────────────────── */
+    --color-rule: #dad3c9;           /* decorative hairlines between rows */
+    --color-rule-strong: #8d857a;    /* control boundaries, 3.3:1 on paper */
+
+    /* ── Action ───────────────────────────────────────────────────────────── */
+    --color-accent: #284e99;         /* links, primary action, focus; 7.2:1 */
+    --color-accent-hover: #183d86;
+    --color-accent-wash: #e6ecf8;    /* selected rows, active tab ground */
+
+    /* ── Meaning ──────────────────────────────────────────────────────────── */
+    --color-gain: var(--color-ink);
+    --color-loss: #9e2c2c;           /* 6.7:1 */
+    --color-loss-wash: #f9e6e2;
+    --color-ok: #266739;             /* status text only, always with an icon */
+    --color-ok-wash: #e2f1e3;
+    --color-warn: #945a00;
+    --color-warn-wash: #fbedd5;
+    --color-focus: var(--color-accent);
+
+    /* ── Chart: growth ramp (dark → light), verdigris H182 ────────────────── */
+    --chart-growth-1: #00574c;
+    --chart-growth-2: #007063;
+    --chart-growth-3: #1d897c;
+    --chart-growth-4: #40a495;
+    --chart-growth-5: #5cbdae;
+
+    /* ── Chart: defensive ramp (dark → light), ochre H58 ──────────────────── */
+    --chart-defensive-1: #763000;
+    --chart-defensive-2: #934a00;
+    --chart-defensive-3: #b0651f;
+    --chart-defensive-4: #ce803f;
+    --chart-defensive-5: #e99959;
+
+    /* ── Chart: categorical, fixed order — never reorder or skip ──────────── */
+    --chart-cat-1: #2f59ab;          /* ink blue */
+    --chart-cat-2: #008b77;          /* teal */
+    --chart-cat-3: #cb8027;          /* ochre (2.9:1 on paper: always labelled) */
+    --chart-cat-4: #c0434c;          /* claret */
+    --chart-cat-5: #733d89;          /* plum */
+    --chart-cat-6: #6a923a;          /* olive */
+
+    /* ── Chart furniture ──────────────────────────────────────────────────── */
+    --chart-grid: var(--color-rule);
+    --chart-axis: var(--color-ink-3);
+    --chart-median: var(--color-ink);
+    --chart-band-inner: rgb(40 78 153 / 0.22);   /* 25–75th percentile */
+    --chart-band-outer: rgb(40 78 153 / 0.10);   /* 10–90th percentile */
+    --chart-heat-low: #fdfbf7;       /* correlation 0 and below: the sheet */
+    --chart-heat-high: #7d93bf;      /* correlation 1: 60% accent, ink stays 4.5:1 */
+
+    /* ── Type ─────────────────────────────────────────────────────────────── */
+    --font-display: 'Newsreader Variable', 'Newsreader', Georgia, 'Times New Roman', serif;
+    --font-text: 'Schibsted Grotesk Variable', 'Schibsted Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    /* Figures in columns and headlines are set in the serif, words in the grotesk.
+       Schibsted's tabular figures widen . , : to digit width ("£39, 846");
+       Newsreader's do not, so tabular alignment costs nothing there. */
+    --font-figures: var(--font-display);
+
+    --fs-xs: 0.75rem;        /* 12 — labels, captions */
+    --fs-sm: 0.875rem;       /* 14 — table cells, secondary */
+    --fs-md: 1rem;           /* 16 — body */
+    --fs-lg: 1.125rem;       /* 18 — lead */
+    --fs-xl: 1.375rem;       /* 22 — section heads */
+    --fs-2xl: 1.75rem;       /* 28 */
+    --fs-3xl: 2.25rem;       /* 36 — page titles */
+    --fs-4xl: 3rem;          /* 48 — headline figures */
+    --fs-5xl: clamp(3rem, 2.2rem + 3.6vw, 4.5rem); /* 48–72 — the one number that matters */
+
+    --lh-tight: 1.08;
+    --lh-snug: 1.3;
+    --lh-body: 1.55;
+
+    --tracking-tight: -0.018em;
+    --tracking-label: 0.07em;
+
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+    --weight-bold: 700;
+
+    /* ── Space (4px grid) ─────────────────────────────────────────────────── */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+    --space-16: 4rem;
+    --space-20: 5rem;
+    --space-24: 6rem;
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    --page-max: 1180px;
+    --measure: 66ch;
+    --gutter: clamp(1rem, 0.5rem + 2.5vw, 2.5rem);
+    /* Breakpoints (media queries cannot read custom properties):
+       sm 640px · md 900px · lg 1180px */
+
+    /* ── Shape ────────────────────────────────────────────────────────────── */
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --radius-pill: 999px;
+    --rule-hairline: 1px solid var(--color-rule);
+    --rule-ink: 1px solid var(--color-ink);
+    --rule-total: 3px double var(--color-ink);   /* under a statement total */
+
+    /* ── Elevation: popovers and tooltips only; panels use rules ──────────── */
+    --shadow-pop: 0 1px 2px rgb(31 27 22 / 0.06), 0 10px 28px -10px rgb(31 27 22 / 0.24);
+
+    /* ── Motion ───────────────────────────────────────────────────────────── */
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-fast: 120ms;
+    --dur-base: 200ms;
+    --dur-slow: 360ms;
+
+    /* ── Controls ─────────────────────────────────────────────────────────── */
+    --control-h: 2.75rem;       /* 44px: WCAG 2.5.5 target size */
+    --control-h-sm: 2.25rem;
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+}
+
+/* ── Dark ─────────────────────────────────────────────────────────────────────
+   The same statement after dark: warm near-black paper and warm ink, not an
+   inversion. Measured against its own ground by the same rules as the light
+   theme: text 4.5:1 on paper, sheet and sunk; control boundaries 3:1; both
+   ramps monotone with the strongest step first (here the brightest), steps
+   ≥ 0.06 apart in lightness, weakest step 2:1 on paper; growth vs defensive
+   ≥ 17 ΔE (CIEDE2000) under simulated deuteranopia and protanopia; the
+   categorical set within one lightness band, adjacent pairs ≥ 10 ΔE under
+   both simulations; ink 4.5:1 on every heatmap shade.
+   The theme is set on <html> before first paint (index.html) from the saved
+   choice or the device setting, so there is no flash of the light theme. */
+:root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --color-paper: #16130f;
+    --color-sheet: #1e1a16;
+    --color-sunk: #0f0d0a;
+    --color-scrim: rgb(0 0 0 / 0.6);
+
+    --color-ink: #f0eadf;            /* 15.5:1 on paper */
+    --color-ink-2: #c7beb2;          /* 10.1:1 */
+    --color-ink-3: #a1978b;          /* 6.4:1 paper / 6.8:1 sunk */
+    --color-ink-inverse: #16130f;
+
+    --color-rule: #342e28;
+    --color-rule-strong: #7b7268;    /* 3.9:1 on paper */
+
+    --color-accent: #93b1ee;         /* 8.6:1 */
+    --color-accent-hover: #b3c9f5;
+    --color-accent-wash: #1f2940;
+
+    --color-loss: #f29488;
+    --color-loss-wash: #3b1d19;
+    --color-ok: #86d19b;
+    --color-ok-wash: #14301d;
+    --color-warn: #eab466;
+    --color-warn-wash: #35260e;
+
+    --chart-growth-1: #6fd6c4;
+    --chart-growth-2: #4ebcab;
+    --chart-growth-3: #35a090;
+    --chart-growth-4: #258476;
+    --chart-growth-5: #1b695e;
+
+    --chart-defensive-1: #f5b074;
+    --chart-defensive-2: #dc9152;
+    --chart-defensive-3: #bf7536;
+    --chart-defensive-4: #9f5c22;
+    --chart-defensive-5: #814515;
+
+    --chart-cat-1: #86a6ee;
+    --chart-cat-2: #3fc3aa;
+    --chart-cat-3: #e0a04e;
+    --chart-cat-4: #ec8088;
+    --chart-cat-5: #bf92da;
+    --chart-cat-6: #a3c86e;
+
+    --chart-band-inner: rgb(147 177 238 / 0.26);
+    --chart-band-outer: rgb(147 177 238 / 0.12);
+    --chart-heat-low: #1e1a16;
+    --chart-heat-high: #3b4d74;
+
+    --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 28px -10px rgb(0 0 0 / 0.7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --dur-fast: 0ms;
+        --dur-base: 0ms;
+        --dur-slow: 0ms;
+    }
+}

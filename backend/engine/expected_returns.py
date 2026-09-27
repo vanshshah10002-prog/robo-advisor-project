@@ -341,39 +341,43 @@ def adjust_for_costs(
 def get_blend_expected_returns(
     monthly_log_returns: pd.DataFrame,
     expense_ratios: Optional[dict[str, float]] = None,
-    w_trailing: float = 0.5,
+    w_trailing: Optional[float] = None,
     risk_free_rate: float = MVO_RISK_FREE_RATE,
+    cov_matrix: Optional[pd.DataFrame] = None,
+    asset_class_of: Optional[dict[str, str]] = None,
 ) -> pd.Series:
     """
-    PRODUCTION expected-returns model (Phase 1 locked): trailing historical mean
-    blended 50/50 with the calibrated Black-Litterman equilibrium prior, on
-    monthly GBP-unhedged log returns, then cost-adjusted.
-
-    Validated in docs/OPTIMIZATION_WALKTHROUGH.md (Phase 1 hold-out gate). Uses
-    the exact `blend_trailing_bl` implementation from the eval harness to
-    guarantee parity with the validated research.
+    PRODUCTION expected-returns model: trailing arithmetic mean blended with
+    the reference-portfolio equilibrium prior (see
+    quant_models.production_expected_returns), clamped to the CMA sanity band.
 
     Parameters:
         monthly_log_returns (pd.DataFrame): month-end GBP log returns per ticker.
-        expense_ratios (dict, optional): {ticker: annual_expense_ratio}.
-        w_trailing (float): blend weight on trailing mean (locked at 0.5).
+        expense_ratios (dict, optional): {ticker: annual TER}, deducted from the prior only.
+        w_trailing (float, optional): trailing weight (default EXPECTED_RETURN_TRAILING_WEIGHT).
         risk_free_rate (float): annual risk-free rate.
+        cov_matrix (pd.DataFrame, optional): annual covariance; EWMA+LW if omitted.
+        asset_class_of (dict, optional): {ticker: asset_class}; registry if omitted.
 
     Returns:
-        pd.Series: net-of-fee annual arithmetic expected returns per ticker,
-        clamped to EXPECTED_RETURN_CLAMP (CMA sanity bounds).
+        pd.Series: annual arithmetic expected returns, clamped to EXPECTED_RETURN_CLAMP.
     """
-    from backend.engine.quant_models import blend_trailing_bl
+    from backend.engine.quant_models import ewma_lw_cov, production_expected_returns
+    from backend.engine.asset_universe import get_etf_by_ticker
     from backend.config import EXPECTED_RETURN_CLAMP
 
-    mu = blend_trailing_bl(
-        monthly_log_returns, w_trailing=w_trailing, risk_free_annual=risk_free_rate
-    )
-    if expense_ratios:
-        mu = adjust_for_costs(mu, expense_ratios)
+    if cov_matrix is None:
+        cov_matrix = ewma_lw_cov(monthly_log_returns)
+    if asset_class_of is None:
+        asset_class_of = {
+            t: (get_etf_by_ticker(t) or {}).get("asset_class", "") for t in cov_matrix.columns
+        }
 
-    # CMA sanity clamp: trailing-heavy estimates outside professional
-    # capital-market-assumption ranges are estimation error, not signal.
+    mu, diag = production_expected_returns(
+        monthly_log_returns, cov_matrix, asset_class_of,
+        expense_ratios, risk_free_rate, w_trailing,
+    )
+
     lo, hi = EXPECTED_RETURN_CLAMP
     n_clamped = int(((mu < lo) | (mu > hi)).sum())
     if n_clamped:
@@ -381,8 +385,8 @@ def get_blend_expected_returns(
     mu = mu.clip(lo, hi)
 
     logger.info(
-        f"Blend(trailing+BL) returns: mean={mu.mean():.4f}, "
-        f"range=[{mu.min():.4f}, {mu.max():.4f}]"
+        f"Expected returns (prior + {diag['trailing_weight']:.0%} trailing over "
+        f"{diag['common_months']}m): mean={mu.mean():.4f}, range=[{mu.min():.4f}, {mu.max():.4f}]"
     )
     return mu
 
@@ -390,33 +394,49 @@ def get_blend_expected_returns(
 def build_mu_cov(
     tickers: list[str],
     expense_by_ticker: Optional[dict[str, float]] = None,
-    w_trailing: float = 0.5,
+    w_trailing: Optional[float] = None,
     risk_free_rate: float = MVO_RISK_FREE_RATE,
     period_years: int = 10,
+    asset_class_of: Optional[dict[str, str]] = None,
 ) -> tuple[pd.Series, pd.DataFrame, pd.DataFrame]:
     """
-    Production input builder (Phases 0–2 integrated): fetches month-end,
-    GBP-unhedged, outer-joined log returns and returns the locked expected
-    returns (trailing+BL blend) and covariance (EWMA+Ledoit-Wolf hybrid),
-    index-aligned and ready for the optimizer.
+    Production input builder: fetches month-end, GBP, outer-joined log
+    returns and returns expected returns (prior + trailing blend) and the
+    covariance (EWMA+Ledoit-Wolf hybrid), index-aligned for the optimiser.
 
     Parameters:
         tickers (list[str]): ETF tickers.
-        expense_by_ticker (dict, optional): {ticker: expense_ratio} for net-of-fee mu.
-        w_trailing (float): blend weight on trailing mean.
+        expense_by_ticker (dict, optional): {ticker: expense_ratio}.
+        w_trailing (float, optional): trailing-mean weight override.
         risk_free_rate (float): annual risk-free rate.
         period_years (int): years of history to fetch.
+        asset_class_of (dict, optional): {ticker: asset_class} for the prior.
 
     Returns:
-        (mu, cov, monthly_returns): annual arithmetic E[R], annual covariance,
-        and the underlying monthly log-return panel (for regime detection).
+        (mu, cov, monthly_returns)
     """
     from backend.data.returns import build_monthly_gbp_log_returns
-    from backend.engine.quant_models import ewma_lw_cov
 
     monthly = build_monthly_gbp_log_returns(tickers, period_years=period_years, min_obs=24)
     if monthly is None or monthly.shape[1] < 2:
         raise ValueError("Insufficient monthly return data for selected ETFs")
+    mu, cov = estimate_mu_cov(monthly, expense_by_ticker, risk_free_rate, asset_class_of, w_trailing)
+    return mu, cov, monthly
+
+
+def estimate_mu_cov(
+    monthly: pd.DataFrame,
+    expense_by_ticker: Optional[dict[str, float]] = None,
+    risk_free_rate: float = MVO_RISK_FREE_RATE,
+    asset_class_of: Optional[dict[str, str]] = None,
+    w_trailing: Optional[float] = None,
+) -> tuple[pd.Series, pd.DataFrame]:
+    """
+    Expected returns and covariance from a monthly log-return panel — the
+    pure estimation step shared by live construction and the walk-forward
+    backtest (which passes only data available at each decision date).
+    """
+    from backend.engine.quant_models import ewma_lw_cov
 
     cov = ewma_lw_cov(monthly)
     # Defensive: a ticker whose covariance column is NaN/Inf (e.g. no
@@ -427,15 +447,17 @@ def build_mu_cov(
         keep = [c for c in cov.columns if c not in bad]
         cov = cov.loc[keep, keep]
 
-    mu = get_blend_expected_returns(monthly, expense_by_ticker, w_trailing, risk_free_rate)
+    mu = get_blend_expected_returns(
+        monthly[list(cov.columns)], expense_by_ticker, w_trailing, risk_free_rate,
+        cov_matrix=cov, asset_class_of=asset_class_of,
+    )
 
-    # Align mu and cov on common tickers
     common = [t for t in mu.index if t in cov.columns]
     if len(common) < 2:
         raise ValueError("Fewer than 2 tickers shared between returns and covariance")
     mu = mu.reindex(common).dropna()
     cov = cov.loc[mu.index, mu.index]
-    return mu, cov, monthly
+    return mu, cov
 
 
 def get_expected_returns(

@@ -16,13 +16,14 @@ from backend.api.models import (
     MonteCarloResponse,
 )
 from backend.engine.optimizer import (
+    OptimisationError,
+    apply_cash_forward_rate,
     compute_efficient_frontier,
-    get_portfolio_performance,
-    _get_weight_bounds,
 )
+from backend.engine.policy import weight_bounds as policy_weight_bounds
 from backend.engine.expected_returns import build_mu_cov
 from backend.engine.monte_carlo import run_monte_carlo, quick_projection
-from backend.engine.asset_universe import get_ticker_map, get_expense_ratios
+from backend.engine.asset_universe import get_etf_by_ticker, resolve_ticker_map
 from backend.data.rates import get_risk_free_rate
 
 router = APIRouter()
@@ -49,28 +50,34 @@ async def get_efficient_frontier(
     if len(classes) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 asset classes")
 
-    # Build price matrix
-    ticker_map = get_ticker_map(classes)
+    ticker_map, _ = resolve_ticker_map(classes)
+    unknown = [c for c in classes if c not in ticker_map]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"No investable ETF for: {', '.join(unknown)}")
     tickers = list(ticker_map.values())
     ac_by_ticker = {v: k for k, v in ticker_map.items()}
 
     # Live GBP risk-free rate (yfinance proxy; config fallback)
     rf_live = get_risk_free_rate()
 
-    expense_ratios = get_expense_ratios(classes)
-    expense_by_ticker = {ticker_map[ac]: er for ac, er in expense_ratios.items()}
+    expense_by_ticker = {t: get_etf_by_ticker(t)["expense_ratio"] for t in tickers}
     try:
-        mu, cov_matrix, _ = build_mu_cov(tickers, expense_by_ticker, risk_free_rate=rf_live)
+        mu, cov_matrix, _ = build_mu_cov(
+            tickers, expense_by_ticker, risk_free_rate=rf_live, asset_class_of=ac_by_ticker,
+        )
     except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e))
 
-    weight_bounds = _get_weight_bounds(list(mu.index), ac_by_ticker)
+    # Same cash assumption as portfolio construction: forward return = live rate.
+    mu = apply_cash_forward_rate(mu, ac_by_ticker, rf_live, expense_by_ticker)
 
-    # Compute frontier (bonds ≤20% / gold ≤10% group caps)
-    frontier = compute_efficient_frontier(
-        mu, cov_matrix, weight_bounds,
-        risk_free_rate=rf_live, asset_class_map=ac_by_ticker,
-    )
+    try:
+        frontier = compute_efficient_frontier(
+            mu, cov_matrix, policy_weight_bounds(list(mu.index), ac_by_ticker),
+            risk_free_rate=rf_live, asset_class_of=ac_by_ticker,
+        )
+    except OptimisationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     frontier_points = [
         EfficientFrontierPoint(
@@ -96,7 +103,9 @@ async def run_monte_carlo_simulation(
     """
     Run Monte Carlo simulation for a portfolio.
 
-    Can use either a saved portfolio (by portfolio_id) or ad-hoc weights.
+    Uses a saved portfolio (portfolio_id), ad-hoc fund weights, or
+    portfolio-level annual_return and annual_volatility (an unsaved preview).
+    Optional goal (in today's money) and real-terms output.
 
     Parameters:
         request (MonteCarloRequest): Simulation parameters.
@@ -104,23 +113,28 @@ async def run_monte_carlo_simulation(
     Returns:
         MonteCarloResponse: Percentile paths and statistics.
     """
+    options = {"goal_amount": request.goal_amount, "real_terms": request.real_terms}
     if request.portfolio_id:
-        # Load portfolio weights
+        # A saved portfolio: project with the figures stored when it was built.
         portfolio = db.query(Portfolio).filter(Portfolio.id == request.portfolio_id).first()
         if not portfolio:
             raise HTTPException(status_code=404, detail="Portfolio not found")
-
-        # Use quick projection with saved performance metrics
+        if portfolio.expected_return is None or not portfolio.expected_volatility:
+            raise HTTPException(
+                status_code=422,
+                detail="This portfolio has no stored expected return and volatility to project from",
+            )
         result = quick_projection(
             initial_investment=request.initial_investment,
             monthly_contribution=request.monthly_contribution,
-            annual_return=portfolio.expected_return or 0.06,
-            annual_volatility=portfolio.expected_volatility or 0.12,
+            annual_return=portfolio.expected_return,
+            annual_volatility=portfolio.expected_volatility,
             years=request.years,
             n_simulations=request.n_simulations,
+            **options,
         )
     elif request.weights:
-        # Ad-hoc weights — need full computation
+        # Ad-hoc weights: estimate inputs for those funds.
         tickers = list(request.weights.keys())
         try:
             mu, cov_matrix, _ = build_mu_cov(tickers, {})
@@ -135,8 +149,23 @@ async def run_monte_carlo_simulation(
             cov_matrix=cov_matrix,
             years=request.years,
             n_simulations=request.n_simulations,
+            **options,
+        )
+    elif request.annual_return is not None and request.annual_volatility is not None:
+        # A preview not yet saved: project with its portfolio-level figures.
+        result = quick_projection(
+            initial_investment=request.initial_investment,
+            monthly_contribution=request.monthly_contribution,
+            annual_return=request.annual_return,
+            annual_volatility=request.annual_volatility,
+            years=request.years,
+            n_simulations=request.n_simulations,
+            **options,
         )
     else:
-        raise HTTPException(status_code=400, detail="Provide portfolio_id or weights")
+        raise HTTPException(
+            status_code=400,
+            detail="Provide portfolio_id, weights, or annual_return with annual_volatility",
+        )
 
     return MonteCarloResponse(**result)

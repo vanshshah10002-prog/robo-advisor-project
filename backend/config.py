@@ -74,7 +74,8 @@ RISK_DECAY_MAX_RISK: int = 6
 ASSET_CLASSES: list[str] = [
     "cash_equivalent",
     "uk_equity", "uk_mid_cap", "global_equity", "us_equity", "us_tech",
-    "emerging_market_equity", "japan_equity", "europe_equity", "asia_pacific_equity",
+    "emerging_market_equity", "japan_equity", "europe_equity", "europe_ex_uk_equity",
+    "asia_pacific_equity",
     "uk_bonds", "uk_gilts", "uk_inflation_linked", "global_bonds", "corporate_bonds",
     "high_yield_bonds", "us_treasury",
     "commodities_gold", "commodities_silver", "commodities_broad",
@@ -107,6 +108,42 @@ ASSET_CLASSES: list[str] = [
 ]
 
 # =============================================================
+# CORE UNIVERSE — the building blocks the optimiser uses
+# =============================================================
+# A small set of low-overlap asset classes (Wealthfront: few, low-correlation
+# classes; Vanguard LifeStrategy: regional equity + GBP-hedged bonds). Each
+# lists its ETFs in order of preference; the first one that is UK-investable,
+# not delisted and has usable price history is used (fallback, not silent drop).
+# Order rationale: lowest cost among large, liquid, long-history GBP lines;
+# cash prefers a SONIA tracker (CSH2) over ultrashort credit (ERNS).
+# See docs/PORTFOLIO_REMEDIATION_PLAN.md §2.3.
+CORE_UNIVERSE: dict[str, list[str]] = {
+    # Growth
+    "uk_equity":              ["ISF.L", "VUKE.L"],
+    "us_equity":              ["VUAG.L", "VUSA.L", "CSP1.L"],
+    "europe_ex_uk_equity":    ["VERX.L"],
+    "japan_equity":           ["VJPN.L", "CJPE.L"],
+    "asia_pacific_equity":    ["VAPX.L", "CPXJ.L"],
+    "emerging_market_equity": ["VFEM.L", "IEEM.L", "VFEG.L"],
+    "global_reits":           ["IWDP.L"],
+    "commodities_gold":       ["SGLN.L", "PHAU.L", "SGLP.L"],
+    # Defensive
+    "uk_gilts":               ["IGLT.L", "VGOV.L"],
+    "uk_inflation_linked":    ["INXG.L"],
+    "global_bonds":           ["AGBP.L", "VAGP.L"],   # GBP-hedged only
+    "corporate_bonds":        ["SLXX.L", "VUKC.L"],
+    "cash_equivalent":        ["CSH2.L", "ERNS.L"],
+}
+# Overlapping or specialist classes (factor, ESG, thematic, dividend, high
+# yield, unhedged Treasuries, small cap, silver, broad commodities,
+# infrastructure, India, Europe incl. UK). Kept in the registry; the optimiser
+# only sees them when this is True.
+USE_SATELLITE_CLASSES: bool = False
+# Minimum monthly history for an ETF to be used (≥3 years keeps the
+# complete-case correlation window meaningful).
+MIN_HISTORY_MONTHS: int = 36
+
+# =============================================================
 # MIN / MAX ALLOCATION CONSTRAINTS PER ASSET CLASS
 # =============================================================
 ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
@@ -119,6 +156,7 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
     "emerging_market_equity":  {"min": 0.00, "max": 0.20},
     "japan_equity":            {"min": 0.00, "max": 0.15},
     "europe_equity":           {"min": 0.00, "max": 0.25},
+    "europe_ex_uk_equity":     {"min": 0.00, "max": 0.25},
     "asia_pacific_equity":     {"min": 0.00, "max": 0.15},
     "uk_bonds":                {"min": 0.00, "max": 0.50},
     "uk_gilts":                {"min": 0.00, "max": 0.40},
@@ -167,9 +205,50 @@ ALLOCATION_CONSTRAINTS: dict[str, dict[str, float]] = {
 }
 
 # =============================================================
-# GROUP (SECTOR) ALLOCATION CAPS — total weight across all members
-# Enforced as portfolio-level constraints in the optimizer (pypfopt sector
-# constraints), independent of per-asset ALLOCATION_CONSTRAINTS above.
+# ALLOCATION POLICY — how a risk score becomes a portfolio
+# =============================================================
+# See docs/PORTFOLIO_REMEDIATION_PLAN.md §2.5.
+# Risk is the share in growth assets (Betterment 0–100% stocks; Vanguard
+# LifeStrategy 20/40/60/80/100): portfolios are built at exactly
+# growth = 10% × risk score and may drift ±5pp before a rebalance. The rest
+# is the defensive sleeve, where bonds — not cash — do the de-risking.
+GROWTH_ASSET_CLASSES: list[str] = [
+    "us_equity", "uk_equity", "europe_ex_uk_equity", "emerging_market_equity",
+    "japan_equity", "asia_pacific_equity", "global_reits", "commodities_gold",
+]
+DEFENSIVE_ASSET_CLASSES: list[str] = [
+    "uk_gilts", "uk_inflation_linked", "global_bonds", "corporate_bonds", "cash_equivalent",
+]
+POLICY_GROWTH_PER_RISK_POINT: float = 0.10
+POLICY_GROWTH_TOLERANCE: float = 0.05
+# Cash may be at most half the defensive sleeve (liquidity buffer, not the de-risker).
+POLICY_CASH_MAX_SHARE_OF_DEFENSIVE: float = 0.50
+# Regional equity (the EQUITY_REGION_REFERENCE blocks) must be at least this
+# share of the growth sleeve; property and gold are diversifiers, not the core.
+POLICY_EQUITY_MIN_SHARE_OF_GROWTH: float = 0.75
+# Per-block maximum weight in the whole portfolio (Wealthfront: 35% for most
+# classes). Regional equity is governed by the region bands below instead.
+POLICY_BLOCK_MAX: dict[str, float] = {
+    "uk_gilts": 0.35,
+    "uk_inflation_linked": 0.20,
+    "global_bonds": 0.35,
+    "corporate_bonds": 0.20,
+    "global_reits": 0.10,
+    "commodities_gold": 0.05,
+    "cash_equivalent": 1.00,   # limited by POLICY_CASH_MAX_SHARE_OF_DEFENSIVE
+}
+# Each equity region's share of total equity stays within
+# reference ± max(ABS, REL × reference) (look-through at region level).
+REGION_BAND_ABS: float = 0.05
+REGION_BAND_REL: float = 0.30
+UK_EQUITY_SHARE_RANGE: tuple[float, float] = (0.10, 0.25)
+# Positions below this are removed by re-solving with them fixed at zero.
+POLICY_MIN_POSITION: float = 0.005
+
+# =============================================================
+# GROUP (SECTOR) ALLOCATION CAPS — LEGACY (backend/eval/legacy_construction.py only)
+# Production uses the allocation policy above. The flat 20% bond cap forced
+# low- and mid-risk portfolios into cash + equity barbells (finding A1).
 # =============================================================
 ASSET_GROUP_CAPS: dict[str, float] = {
     "bonds": 0.20,   # total TERM fixed income ≤ 20% (mandate)
@@ -200,13 +279,28 @@ VOL_CALIBRATION_MULTIPLIER: float = 1.15
 # =============================================================
 # REBALANCING THRESHOLDS
 # =============================================================
-REBALANCE_DRIFT_THRESHOLD: float = 0.05     # Trigger if any asset drifts >5%
-REBALANCE_CHECK_FREQUENCY: str = "monthly"   # "daily" | "weekly" | "monthly" (monthly avoids over-trading)
+# Tolerance band per holding = max(MIN, min(ABS, REL × target)): ±5pp for large
+# sleeves, ±25% of target for small ones, never tighter than ±1pp.
+# Sources: Vanguard (Jaconetti, Kinniry & Zilbering) ~5% thresholds;
+# Daryanani (2008) 20–25% relative bands. See docs/PORTFOLIO_REMEDIATION_PLAN.md.
+REBALANCE_ABS_BAND: float = 0.05
+REBALANCE_REL_BAND: float = 0.25
+REBALANCE_MIN_BAND: float = 0.01
+REBALANCE_DRIFT_THRESHOLD: float = REBALANCE_ABS_BAND  # legacy name
+# Portfolio drift = ½·Σ|current − target| (Betterment's definition and default 3%).
+REBALANCE_PORTFOLIO_DRIFT: float = 0.03
+# Trades smaller than max(£25, 0.25% of portfolio value) are not worth their cost.
+REBALANCE_MIN_TRADE_GBP: float = 25.0
+REBALANCE_MIN_TRADE_PCT: float = 0.0025
+REBALANCE_CHECK_FREQUENCY: str = "daily"     # check often, trade rarely (Daryanani); bands limit turnover
 
 # Round-trip transaction cost assumption (one-way, basis points of traded notional).
 # ~0.10% covers typical UK ETF bid-ask half-spread + commission. UK ETFs are exempt
 # from the 0.5% stamp duty that applies to individual LSE shares.
 TRANSACTION_COST_BPS: float = 10.0
+# A previewed construction is reused when the investor confirms within this
+# window, so the portfolio they open is exactly the one they were shown.
+CONSTRUCTION_CACHE_TTL_SECONDS: float = 6 * 3600
 
 # =============================================================
 # OPTIMIZATION PARAMETERS
@@ -218,7 +312,7 @@ TRANSACTION_COST_BPS: float = 10.0
 # reporting — the previous hardcoded 6% HURDLE_RATE has been removed.
 MVO_RISK_FREE_RATE: float = 0.040
 # Live risk-free proxy: GBP ultrashort/money-market ETFs, tried in order.
-RISK_FREE_PROXY_TICKERS: list[str] = ["ERNS.L", "CSH2.L"]
+RISK_FREE_PROXY_TICKERS: list[str] = ["CSH2.L", "ERNS.L"]  # SONIA tracker first; ERNS carries credit spread
 RISK_FREE_LOOKBACK_MONTHS: int = 12
 # Sanity clamp on the fetched rate (annual). Outside this band = data error.
 RISK_FREE_CLAMP: tuple[float, float] = (0.0, 0.08)
@@ -227,6 +321,40 @@ RISK_FREE_CLAMP: tuple[float, float] = (0.0, 0.08)
 # estimates outside this band are treated as estimation error, not signal.
 EXPECTED_RETURN_CLAMP: tuple[float, float] = (-0.05, 0.12)
 BLACK_LITTERMAN_TAU: float = 0.05            # Scaling factor for BL prior uncertainty
+
+# Reference (neutral) portfolio for the equilibrium prior: π = λ·Σ·w_ref.
+# A global multi-asset market proxy (Doeswijk, Lam & Swinkels 2014) with the
+# equity split by FTSE All-World regional weights and a 20% UK home bias
+# (Vanguard LifeStrategy 2026). Cash is excluded: its E[R] is the live rate.
+# Using asset-class weights, not ETF fund sizes, is what makes the prior an
+# equilibrium (Idzorek; Wealthfront uses the global market portfolio).
+EQUITY_REGION_REFERENCE: dict[str, float] = {   # share of total equity
+    "us_equity": 0.53,
+    "uk_equity": 0.20,
+    "europe_ex_uk_equity": 0.10,
+    "emerging_market_equity": 0.09,
+    "japan_equity": 0.05,
+    "asia_pacific_equity": 0.03,
+}
+REFERENCE_EQUITY_SHARE: float = 0.55
+REFERENCE_MARKET_WEIGHTS: dict[str, float] = {
+    **{ac: REFERENCE_EQUITY_SHARE * w for ac, w in EQUITY_REGION_REFERENCE.items()},
+    "uk_gilts": 0.10,
+    "uk_inflation_linked": 0.05,
+    "global_bonds": 0.18,
+    "corporate_bonds": 0.07,
+    "global_reits": 0.03,
+    "commodities_gold": 0.02,
+}
+# Market price of risk λ, fixed (He & Litterman 1999 use 2.5). Fitting it to a
+# trailing window made the prior swing with recent returns.
+BL_RISK_AVERSION: float = 2.5
+# Weight on the trailing (historical) mean in the expected-return blend; the
+# rest is the equilibrium prior. Errors in means dominate MVO error (Chopra &
+# Ziemba 1993), so history gets a minority weight — and less when the common
+# estimation window is shorter than TRAILING_FULL_WEIGHT_MONTHS.
+EXPECTED_RETURN_TRAILING_WEIGHT: float = 0.25
+TRAILING_FULL_WEIGHT_MONTHS: int = 120
 MVO_EFFICIENT_FRONTIER_POINTS: int = 50      # Number of portfolios on frontier curve
 
 # =============================================================
@@ -255,7 +383,7 @@ DUAL_MOMENTUM_REDUCTION: float = 0.50        # Reduce allocation by 50% if negat
 # =============================================================
 # CORRELATION REGIME DETECTION
 # =============================================================
-REGIME_DETECTION_ENABLED: bool = True
+REGIME_DETECTION_ENABLED: bool = False     # strategic by default (Betterment/Wealthfront/Vanguard); see plan P9
 REGIME_HIGH_CORR_THRESHOLD: float = 0.75     # (legacy correlation detector)
 REGIME_VOL_ENTER_Z: float = 1.0              # enter crisis when vol z-score > this
 REGIME_VOL_EXIT_Z: float = 0.5               # remain in crisis until z falls below this (hysteresis)

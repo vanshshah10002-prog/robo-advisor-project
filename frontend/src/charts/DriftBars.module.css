@@ -1,0 +1,130 @@
+.chart {
+    --drift-cols: minmax(8rem, 14rem) minmax(8rem, 1fr) 7.5rem;
+    display: grid;
+    gap: var(--space-1);
+}
+
+.axis {
+    display: grid;
+    grid-template-columns: var(--drift-cols);
+    column-gap: var(--space-4);
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+/* The three labels sit under the track column only. */
+.axis span:nth-child(1) { grid-column: 2; justify-self: start; }
+.axis span:nth-child(2) { grid-column: 2; justify-self: center; }
+.axis span:nth-child(3) { grid-column: 2; justify-self: end; }
+.axis span { grid-row: 1; }
+
+.rows {
+    display: grid;
+    padding: 0;
+    list-style: none;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: var(--drift-cols);
+    align-items: center;
+    column-gap: var(--space-4);
+    min-height: 2.75rem;
+    padding: var(--space-1) 0;
+    border-bottom: var(--rule-hairline);
+}
+
+.name {
+    min-width: 0;
+    font-size: var(--fs-sm);
+    color: var(--color-ink);
+}
+
+.detail {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+.track {
+    position: relative;
+    height: 1.5rem;
+}
+
+.band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--color-sunk);
+    border-radius: var(--radius-sm);
+}
+
+.centre {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    left: 50%;
+    width: 1px;
+    background: var(--color-ink);
+}
+
+.bar {
+    position: absolute;
+    top: 50%;
+    height: 0.625rem;
+    min-width: 2px;
+    transform: translateY(-50%);
+    background: var(--color-ink-2);
+    border-radius: 1px;
+}
+
+.out {
+    background: var(--color-warn);
+}
+
+.figures {
+    display: grid;
+    justify-items: end;
+    line-height: var(--lh-snug);
+}
+
+.drift {
+    font-family: var(--font-figures);
+    font-size: var(--fs-md);
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--color-ink);
+}
+
+.of {
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+    white-space: nowrap;
+}
+
+.flag {
+    grid-column: 1 / -1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-bottom: var(--space-1);
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    color: var(--color-warn);
+}
+
+@media (max-width: 640px) {
+    .chart {
+        --drift-cols: minmax(0, 1fr) 6.5rem;
+    }
+
+    .axis span { grid-column: 1 !important; }
+
+    .name {
+        grid-column: 1 / -1;
+        padding-top: var(--space-1);
+    }
+
+    .track {
+        grid-column: 1;
+    }
+}

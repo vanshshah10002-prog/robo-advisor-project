@@ -1,0 +1,5 @@
+.notes {
+    display: grid;
+    gap: var(--space-1);
+    padding-left: var(--space-4);
+}

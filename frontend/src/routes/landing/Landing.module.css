@@ -1,0 +1,120 @@
+.page {
+    display: grid;
+    gap: var(--space-20);
+    padding: var(--space-12) 0 var(--space-4);
+}
+
+/* ── Hero: one sentence, set large, and one action ─────────────────────── */
+
+.hero {
+    display: grid;
+    gap: var(--space-5);
+    padding-bottom: var(--space-12);
+    border-bottom: var(--rule-total);
+    animation: rise var(--dur-slow) var(--ease-out) both;
+}
+
+.title {
+    max-width: 14ch;
+    font-size: clamp(3rem, 1.9rem + 5vw, 6rem);
+    font-weight: var(--weight-regular);
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+}
+
+.title em {
+    font-style: italic;
+}
+
+.lead {
+    max-width: 36rem;
+    font-family: var(--font-display);
+    font-size: var(--fs-xl);
+    line-height: var(--lh-snug);
+    color: var(--color-ink-2);
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.sectionTitle {
+    font-size: var(--fs-2xl);
+}
+
+/* ── How it works: three ruled columns, numbered like a statement ──────── */
+
+.steps {
+    display: grid;
+    gap: var(--space-6);
+}
+
+.steps ol {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: var(--space-6) var(--space-10);
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+}
+
+.steps li {
+    counter-increment: step;
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: var(--rule-ink);
+}
+
+.steps li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--font-display);
+    font-size: var(--fs-3xl);
+    line-height: 1;
+    color: var(--color-ink);
+}
+
+.steps h3 {
+    font-family: var(--font-text);
+    font-size: var(--fs-md);
+    font-weight: var(--weight-semibold);
+}
+
+.steps p {
+    font-size: var(--fs-sm);
+    color: var(--color-ink-2);
+}
+
+/* ── Evidence ──────────────────────────────────────────────────────────── */
+
+.evidence {
+    display: grid;
+    gap: var(--space-8);
+}
+
+.evidenceHead {
+    display: grid;
+    gap: var(--space-4);
+    max-width: 44rem;
+}
+
+.sentence {
+    min-height: 3lh;
+    font-family: var(--font-display);
+    font-size: var(--fs-lg);
+    line-height: var(--lh-snug);
+    color: var(--color-ink);
+}
+
+.levels {
+    max-width: 34rem;
+}
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}

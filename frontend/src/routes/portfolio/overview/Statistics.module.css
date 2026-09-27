@@ -1,0 +1,89 @@
+/* A ruled column of figures, like the notes beside a statement: labels on
+   the left, figures set in tabular numerals on the right. */
+.panel {
+    display: grid;
+    align-content: start;
+    gap: var(--space-6);
+    min-width: 0;
+}
+
+.title {
+    padding-bottom: var(--space-2);
+    border-bottom: var(--rule-ink);
+    font-family: var(--font-text);
+    font-size: var(--fs-md);
+    font-weight: var(--weight-semibold);
+}
+
+.group {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.groupTitle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+}
+
+.note {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+    color: var(--color-ink-2);
+}
+
+.figures {
+    display: grid;
+    margin: 0;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-4);
+    padding: var(--space-2) 0;
+    border-top: var(--rule-hairline);
+}
+
+.label {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+    color: var(--color-ink-2);
+}
+
+.value,
+.pending {
+    display: grid;
+    justify-items: end;
+    margin: 0;
+    text-align: right;
+}
+
+.value {
+    font-family: var(--font-figures);
+    font-size: var(--fs-md);
+    font-variant-numeric: tabular-nums lining-nums;
+    color: var(--color-ink);
+}
+
+.pending {
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+}
+
+/* Proportional: tabular spacing, inherited from the figure, would set the
+   point and comma in "4.2%" and "£2,349" a full figure wide in this face. */
+.detail {
+    font-family: var(--font-text);
+    font-size: var(--fs-xs);
+    font-variant-numeric: proportional-nums;
+    color: var(--color-ink-3);
+}

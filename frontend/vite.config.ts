@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -12,12 +13,38 @@ export default defineConfig({
     server: {
         port: 5173,
         proxy: {
+            // The backend mounts its routes under /api, so no rewrite is needed.
             '/api': {
                 target: 'http://127.0.0.1:8000',
                 changeOrigin: true,
-                // Backend already mounts routes at /api, so no rewrite needed
-                // /api/portfolio → http://127.0.0.1:8000/api/portfolio ✓
             },
+        },
+    },
+    test: {
+        environment: 'jsdom',
+        setupFiles: ['./src/test/setup.ts'],
+        include: ['src/**/*.test.{ts,tsx}'],
+        // Route tests render the whole app and type as a person would.
+        testTimeout: 20_000,
+        // Only the token sheet is read in tests (as ?raw); component CSS is skipped.
+        css: { include: [/styles\/tokens\.css/] },
+        coverage: {
+            provider: 'v8',
+            include: [
+                'src/App.tsx',
+                'src/api/http.ts',
+                'src/api/endpoints.ts',
+                'src/api/names.ts',
+                'src/api/queries.ts',
+                'src/charts/**',
+                'src/lib/**',
+                'src/routes/**',
+                'src/store/session.ts',
+                'src/ui/**',
+            ],
+            // The styleguide is a reference page for designers, not part of the journey.
+            exclude: ['**/*.test.{ts,tsx}', 'src/routes/styleguide/**'],
+            thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
         },
     },
 })

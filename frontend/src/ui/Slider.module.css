@@ -1,0 +1,120 @@
+.slider {
+    --track: 6px;
+    --thumb: 1.375rem;
+    display: grid;
+    gap: var(--space-2);
+    min-width: 0;
+    padding-bottom: var(--space-6);   /* room for the stop labels */
+}
+
+.head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.label {
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-ink);
+}
+
+.value {
+    font-family: var(--font-figures);
+    font-size: var(--fs-2xl);
+    line-height: 1;
+    font-variant-numeric: proportional-nums lining-nums;
+    color: var(--color-ink);
+}
+
+.hint {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+    color: var(--color-ink-2);
+}
+
+/* The track fills with ink up to the thumb; the thumb is the one accent. */
+.range {
+    appearance: none;
+    width: 100%;
+    height: var(--control-h);
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.range:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.range::-webkit-slider-runnable-track {
+    height: var(--track);
+    border-radius: var(--radius-pill);
+    background: linear-gradient(to right, var(--color-ink) var(--fill), var(--color-sunk) var(--fill));
+}
+
+.range::-moz-range-track {
+    height: var(--track);
+    border-radius: var(--radius-pill);
+    background: linear-gradient(to right, var(--color-ink) var(--fill), var(--color-sunk) var(--fill));
+}
+
+.range::-webkit-slider-thumb {
+    appearance: none;
+    width: var(--thumb);
+    height: var(--thumb);
+    margin-top: calc((var(--track) - var(--thumb)) / 2);
+    border: 3px solid var(--color-sheet);
+    border-radius: 50%;
+    background: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.range::-moz-range-thumb {
+    width: var(--thumb);
+    height: var(--thumb);
+    border: 3px solid var(--color-sheet);
+    border-radius: 50%;
+    background: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.range:focus-visible {
+    outline: none;
+}
+
+.range:focus-visible::-webkit-slider-thumb {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+.range:focus-visible::-moz-range-thumb {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: 2px;
+}
+
+/* Stop labels sit under the track, centred on their stop; the ends anchor inward. */
+.stops {
+    position: relative;
+    height: 0;
+    margin: calc(-1 * var(--space-2)) calc(var(--thumb) / 2) 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-xs);
+    color: var(--color-ink-3);
+    font-variant-numeric: lining-nums;
+}
+
+.stops li {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.stops .current {
+    font-weight: var(--weight-semibold);
+    color: var(--color-ink);
+}

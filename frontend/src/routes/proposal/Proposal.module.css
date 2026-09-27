@@ -1,0 +1,122 @@
+/* Phones: the sentence, the controls, the proposal, then the one action.
+   Wider: controls and the action stay in a sticky column beside the proposal. */
+.layout {
+    display: grid;
+    gap: var(--space-10);
+    padding: var(--space-8) 0 var(--space-4);
+}
+
+.side {
+    display: contents;
+}
+
+.head { order: 0; }
+.controls { order: 1; }
+.content { order: 2; }
+.open { order: 3; }
+
+@media (min-width: 900px) {
+    .layout {
+        grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr);
+        grid-template-areas:
+            'side head'
+            'side content';
+        grid-template-rows: auto 1fr;
+        gap: var(--space-8) var(--space-12);
+        align-items: start;
+    }
+
+    .head { grid-area: head; }
+    .content { grid-area: content; }
+
+    .side {
+        grid-area: side;
+        position: sticky;
+        top: var(--space-6);
+        display: grid;
+        gap: var(--space-8);
+    }
+}
+
+.controls {
+    display: grid;
+    gap: var(--space-6);
+    padding-top: var(--space-3);
+    border-top: var(--rule-ink);
+}
+
+.sideTitle {
+    font-family: var(--font-text);
+    font-size: var(--fs-xs);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-label);
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+}
+
+.open {
+    display: grid;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: var(--rule-total);
+}
+
+.openNote {
+    font-size: var(--fs-sm);
+    line-height: var(--lh-snug);
+    color: var(--color-ink-2);
+}
+
+.openButton {
+    width: 100%;
+}
+
+.content {
+    display: grid;
+    gap: var(--space-12);
+    min-width: 0;
+}
+
+.head {
+    display: grid;
+    gap: var(--space-3);
+}
+
+/* The proposal opens with its sentence, set like a lead paragraph. */
+.title {
+    max-width: 30ch;
+    font-size: clamp(1.625rem, 1.3rem + 1.3vw, 2.25rem);
+    font-weight: var(--weight-regular);
+    line-height: 1.2;
+    letter-spacing: -0.012em;
+    text-wrap: pretty;
+}
+
+.status {
+    min-height: 1.25rem;
+    font-size: var(--fs-sm);
+    color: var(--color-ink-3);
+}
+
+.stats {
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+}
+
+.funds {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.sectionTitle {
+    padding-bottom: var(--space-2);
+    border-bottom: var(--rule-ink);
+    font-family: var(--font-text);
+    font-size: var(--fs-md);
+    font-weight: var(--weight-semibold);
+}
+
+.loading {
+    padding: var(--space-6) 0;
+    font-size: var(--fs-sm);
+    color: var(--color-ink-3);
+}

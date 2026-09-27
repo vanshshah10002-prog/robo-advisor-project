@@ -4,6 +4,8 @@ UK Robo Advisor — FastAPI Application Entrypoint
 Main application file that configures FastAPI, CORS, and mounts all route modules.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,6 +15,16 @@ from backend.api.routes.portfolio import router as portfolio_router
 from backend.api.routes.simulate import router as simulate_router
 from backend.api.routes.performance import router as performance_router
 from backend.api.routes.market import router as market_router
+from backend.api.routes.insight import router as insight_router
+from backend.db.database import init_db
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Create tables and add any new ledger columns before the first request.
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="UK Robo Advisor",
@@ -25,6 +37,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS — allow local frontend
@@ -42,6 +55,7 @@ app.include_router(portfolio_router, prefix="/api", tags=["Portfolio"])
 app.include_router(simulate_router, prefix="/api", tags=["Simulation"])
 app.include_router(performance_router, prefix="/api", tags=["Performance"])
 app.include_router(market_router, prefix="/api", tags=["Market Data"])
+app.include_router(insight_router, prefix="/api", tags=["Insight"])
 
 
 @app.get("/", tags=["Health"])

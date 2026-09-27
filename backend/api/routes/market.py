@@ -13,9 +13,11 @@ from backend.engine.asset_universe import (
     get_etf_by_ticker,
     get_etfs_by_asset_class,
 )
-from backend.data.market_data import fetch_prices, get_current_price
+from backend.data.market_data import fetch_prices
+from backend.data.prices import get_latest_gbp_price
 from backend.data.cache import get_or_fetch_prices
 from backend.config import ASSET_CLASSES
+from backend.engine.universe_view import BLOCK_INFO
 
 router = APIRouter()
 
@@ -72,7 +74,8 @@ async def list_asset_classes():
         "us_tech": {"name": "US Tech (NASDAQ)", "description": "NASDAQ-100 — US technology stocks", "risk_level": 5},
         "emerging_market_equity": {"name": "Emerging Markets", "description": "Developing economies — high growth potential", "risk_level": 5},
         "japan_equity": {"name": "Japan Equity", "description": "Japanese stock market — MSCI Japan", "risk_level": 4},
-        "europe_equity": {"name": "Europe ex-UK Equity", "description": "Developed Europe — France, Germany, etc.", "risk_level": 4},
+        "europe_equity": {"name": "Europe Equity", "description": "Developed Europe including the UK", "risk_level": 4},
+        "europe_ex_uk_equity": {"name": "Europe ex-UK Equity", "description": "Developed Europe — France, Germany, etc.", "risk_level": 4},
         "asia_pacific_equity": {"name": "Asia Pacific ex-Japan", "description": "Australia, Hong Kong, Singapore", "risk_level": 4},
         "uk_bonds": {"name": "UK Government Bonds", "description": "UK gilts — sterling government bonds", "risk_level": 2},
         "uk_gilts": {"name": "UK Gilts (Core)", "description": "Core UK government bonds — safe haven", "risk_level": 1},
@@ -110,6 +113,9 @@ async def list_asset_classes():
         seen_classes.add(ac)
 
         info = descriptions.get(ac, {"name": ac.replace("_", " ").title(), "description": "", "risk_level": 3})
+        if ac in BLOCK_INFO:
+            # The building blocks carry one plain name everywhere they appear.
+            info = {**info, "name": BLOCK_INFO[ac][0]}
         etfs_in_class = get_etfs_by_asset_class(ac)
         primary = etfs_in_class[0] if etfs_in_class else None
         result.append({
@@ -162,15 +168,14 @@ async def get_prices(
 @router.get("/price/{ticker}")
 async def get_latest_price(ticker: str):
     """
-    Get the latest price for an ETF.
-
-    Parameters:
-        ticker (str): ETF ticker.
+    Latest close for an ETF in GBP per unit — the same price the ledger uses.
 
     Returns:
-        dict: Ticker and latest close price.
+        dict: {ticker, price_gbp, as_of}.
     """
-    price = get_current_price(ticker)
-    if price is None:
-        raise HTTPException(status_code=404, detail=f"Could not fetch price for {ticker}")
-    return {"ticker": ticker, "price": round(price, 4)}
+    quote = get_latest_gbp_price(ticker)
+    if quote is None:
+        raise HTTPException(status_code=404, detail=f"No price available for {ticker}")
+    price, as_of = quote
+    return {"ticker": ticker, "price_gbp": round(price, 4), "price": round(price, 4),
+            "as_of": as_of.isoformat()}

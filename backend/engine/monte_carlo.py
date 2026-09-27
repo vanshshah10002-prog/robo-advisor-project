@@ -136,6 +136,82 @@ def _simulate_paths_garch(
     return paths
 
 
+def paid_in_by_year(
+    initial_investment: float,
+    monthly_contribution: float,
+    years: int,
+    inflation_rate: float = INFLATION_RATE,
+) -> np.ndarray:
+    """
+    Cumulative amount paid in at each year end (index 0 = today), nominal.
+    Mirrors `_simulate_paths`: contribution m is monthly × (1 + infl_m)^m.
+    """
+    infl_m = (1.0 + inflation_rate) ** (1.0 / 12.0) - 1.0
+    months = np.arange(years * 12)
+    monthly = monthly_contribution * (1.0 + infl_m) ** months
+    cumulative = np.concatenate([[0.0], np.cumsum(monthly)])
+    return initial_investment + cumulative[[0] + [y * 12 for y in range(1, years + 1)]]
+
+
+def summarise_paths(
+    all_paths: np.ndarray,
+    initial_investment: float,
+    monthly_contribution: float,
+    years: int,
+    goal_amount: Optional[float] = None,
+    real_terms: bool = False,
+    inflation_rate: float = INFLATION_RATE,
+) -> dict:
+    """
+    Year-end percentiles and plain-English probabilities from simulated paths.
+
+    - `contributions`: total paid in by each year end.
+    - `loss_probability_by_year`: share of paths worth less than was paid in,
+      compared on the same basis as the values shown.
+    - `probability_of_goal`: share of paths reaching `goal_amount`, where the
+      goal is in today's money (inflated to the horizon before comparing).
+    - `real_terms`: values are divided by cumulative inflation, i.e. shown in
+      today's money. Each payment is counted at its value when paid: the
+      contributions rise with inflation, so in today's money every one is
+      worth its face amount, and the lump sum stays the lump sum. A path that
+      only keeps up with prices in pounds is therefore a loss in real terms.
+    """
+    year_indices = [0] + [i * 12 for i in range(1, years + 1)]
+    yearly = all_paths[:, year_indices]
+    if real_terms:
+        shown = yearly / (1.0 + inflation_rate) ** np.arange(years + 1)
+        paid_in = paid_in_by_year(initial_investment, monthly_contribution, years, inflation_rate=0.0)
+    else:
+        shown = yearly
+        paid_in = paid_in_by_year(initial_investment, monthly_contribution, years, inflation_rate)
+
+    final = yearly[:, -1]
+    prob_goal = None
+    if goal_amount is not None:
+        prob_goal = float(np.mean(final >= goal_amount * (1.0 + inflation_rate) ** years))
+    loss_by_year = np.mean(shown < paid_in - 1e-9, axis=0)
+
+    def pct(q: int) -> list[float]:
+        return [round(float(v), 2) for v in np.percentile(shown, q, axis=0)]
+
+    return {
+        "percentile_10": pct(10),
+        "percentile_25": pct(25),
+        "percentile_50": pct(50),
+        "percentile_75": pct(75),
+        "percentile_90": pct(90),
+        "years": list(range(years + 1)),
+        "expected_final_value": round(float(np.mean(shown[:, -1])), 2),
+        "median_final_value": round(float(np.median(shown[:, -1])), 2),
+        "probability_of_goal": prob_goal,
+        "contributions": [round(float(v), 2) for v in paid_in],
+        "loss_probability_by_year": [round(float(v), 4) for v in loss_by_year],
+        "probability_of_loss": round(float(loss_by_year[-1]), 4),
+        "real_terms": real_terms,
+        "inflation_rate": inflation_rate,
+    }
+
+
 def run_monte_carlo(
     initial_investment: float,
     monthly_contribution: float,
@@ -145,6 +221,7 @@ def run_monte_carlo(
     years: int = MONTE_CARLO_YEARS,
     n_simulations: int = MONTE_CARLO_SIMULATIONS,
     goal_amount: Optional[float] = None,
+    real_terms: bool = False,
 ) -> dict:
     """
     Run Monte Carlo simulation for portfolio projection.
@@ -204,41 +281,10 @@ def run_monte_carlo(
         years, n_simulations,
     )
 
-    # Extract year-end values
-    year_indices = [0] + [i * 12 for i in range(1, years + 1)]
-    yearly_values = all_paths[:, year_indices]
-
-    # Percentiles
-    percentiles = {
-        10: np.percentile(yearly_values, 10, axis=0).tolist(),
-        25: np.percentile(yearly_values, 25, axis=0).tolist(),
-        50: np.percentile(yearly_values, 50, axis=0).tolist(),
-        75: np.percentile(yearly_values, 75, axis=0).tolist(),
-        90: np.percentile(yearly_values, 90, axis=0).tolist(),
-    }
-
-    final_values = yearly_values[:, -1]
-
-    # Goal probability — REAL-TERMS consistent: contributions grow with
-    # inflation, so the goal is also inflated to the horizon. Comparing
-    # inflation-grown wealth against a frozen nominal goal would overstate
-    # P(goal) on long horizons.
-    prob_goal = None
-    if goal_amount is not None:
-        goal_at_horizon = goal_amount * (1.0 + INFLATION_RATE) ** years
-        prob_goal = float(np.mean(final_values >= goal_at_horizon))
-
-    return {
-        "percentile_10": [round(v, 2) for v in percentiles[10]],
-        "percentile_25": [round(v, 2) for v in percentiles[25]],
-        "percentile_50": [round(v, 2) for v in percentiles[50]],
-        "percentile_75": [round(v, 2) for v in percentiles[75]],
-        "percentile_90": [round(v, 2) for v in percentiles[90]],
-        "years": list(range(years + 1)),
-        "expected_final_value": round(float(np.mean(final_values)), 2),
-        "median_final_value": round(float(np.median(final_values)), 2),
-        "probability_of_goal": prob_goal,
-    }
+    return summarise_paths(
+        all_paths, initial_investment, monthly_contribution, years,
+        goal_amount=goal_amount, real_terms=real_terms,
+    )
 
 
 def quick_projection(
@@ -248,6 +294,8 @@ def quick_projection(
     annual_volatility: float,
     years: int = 30,
     n_simulations: int = 500,
+    goal_amount: Optional[float] = None,
+    real_terms: bool = False,
 ) -> dict:
     """
     Simplified Monte Carlo using portfolio-level parameters directly.
@@ -269,18 +317,7 @@ def quick_projection(
         years, n_simulations,
     )
 
-    year_indices = [0] + [i * 12 for i in range(1, years + 1)]
-    yearly_values = all_paths[:, year_indices]
-    final_values = yearly_values[:, -1]
-
-    return {
-        "percentile_10": [round(v, 2) for v in np.percentile(yearly_values, 10, axis=0)],
-        "percentile_25": [round(v, 2) for v in np.percentile(yearly_values, 25, axis=0)],
-        "percentile_50": [round(v, 2) for v in np.percentile(yearly_values, 50, axis=0)],
-        "percentile_75": [round(v, 2) for v in np.percentile(yearly_values, 75, axis=0)],
-        "percentile_90": [round(v, 2) for v in np.percentile(yearly_values, 90, axis=0)],
-        "years": list(range(years + 1)),
-        "expected_final_value": round(float(np.mean(final_values)), 2),
-        "median_final_value": round(float(np.median(final_values)), 2),
-        "probability_of_goal": None,
-    }
+    return summarise_paths(
+        all_paths, initial_investment, monthly_contribution, years,
+        goal_amount=goal_amount, real_terms=real_terms,
+    )

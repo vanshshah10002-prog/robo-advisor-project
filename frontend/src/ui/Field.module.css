@@ -1,0 +1,107 @@
+.field {
+    display: grid;
+    min-width: 0;
+    gap: var(--space-2);
+    max-width: 28rem;
+}
+
+.label {
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--color-ink);
+}
+
+.optional {
+    font-weight: var(--weight-regular);
+    color: var(--color-ink-3);
+}
+
+.hint {
+    margin-top: calc(-1 * var(--space-1));
+    font-size: var(--fs-sm);
+    color: var(--color-ink-2);
+    line-height: var(--lh-snug);
+}
+
+/* The control is a ruled box; prefix and suffix sit inside it, in ink-3. */
+.control {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h);
+    background: var(--color-sheet);
+    border: 1px solid var(--color-rule-strong);
+    border-radius: var(--radius-md);
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+
+.control:hover {
+    border-color: var(--color-ink-2);
+}
+
+.control:focus-within {
+    border-color: var(--color-focus);
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: 0;
+}
+
+.input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    min-height: calc(var(--control-h) - 2px);
+    padding: 0 var(--space-3);
+    border: 0;
+    background: transparent;
+    font-size: var(--fs-md);
+    font-variant-numeric: lining-nums;
+    color: var(--color-ink);
+}
+
+.input:focus,
+.input:focus-visible {
+    outline: none;
+}
+
+.input::placeholder {
+    color: var(--color-ink-3);
+    opacity: 1;
+}
+
+.affix {
+    padding: 0 var(--space-3);
+    color: var(--color-ink-3);
+    font-size: var(--fs-md);
+    white-space: nowrap;
+}
+
+.affix:first-child {
+    padding-right: 0;
+}
+
+.affix:last-child {
+    padding-left: 0;
+}
+
+.invalid .control {
+    border-color: var(--color-loss);
+}
+
+.invalid .control:focus-within {
+    outline-color: var(--color-loss);
+}
+
+.error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    font-size: var(--fs-sm);
+    font-weight: var(--weight-medium);
+    color: var(--color-loss);
+    line-height: var(--lh-snug);
+}
+
+.error svg {
+    flex: none;
+    margin-top: 0.15em;
+}

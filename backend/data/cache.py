@@ -54,6 +54,11 @@ def _get_connection() -> sqlite3.Connection:
         conn.execute("ALTER TABLE cache_metadata ADD COLUMN period_years INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # column already exists
+    # Trading currency detected from Yahoo at fetch time (GBP after pence scaling).
+    try:
+        conn.execute("ALTER TABLE cache_metadata ADD COLUMN quote_currency TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     return conn
 
@@ -120,10 +125,24 @@ def get_cached_prices(ticker: str) -> Optional[pd.DataFrame]:
 
         df.columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
         df = df.set_index("Date")
+        df.attrs["currency"] = get_cached_quote_currency(ticker)
         return df
 
     except Exception as e:
         logger.error(f"Cache read failed for {ticker}: {e}")
+        return None
+
+
+def get_cached_quote_currency(ticker: str) -> Optional[str]:
+    """Trading currency recorded when the ticker was last fetched, or None."""
+    try:
+        conn = _get_connection()
+        row = conn.execute(
+            "SELECT quote_currency FROM cache_metadata WHERE ticker = ?", (ticker,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row and row[0] else None
+    except Exception:
         return None
 
 
@@ -165,8 +184,8 @@ def save_to_cache(ticker: str, df: pd.DataFrame, period_years: int = 0) -> None:
         # Update metadata
         conn.execute(
             "INSERT OR REPLACE INTO cache_metadata "
-            "(ticker, last_fetched, records_count, period_years) VALUES (?, ?, ?, ?)",
-            (ticker, now, len(records), int(period_years)),
+            "(ticker, last_fetched, records_count, period_years, quote_currency) VALUES (?, ?, ?, ?, ?)",
+            (ticker, now, len(records), int(period_years), df.attrs.get("currency")),
         )
 
         conn.commit()

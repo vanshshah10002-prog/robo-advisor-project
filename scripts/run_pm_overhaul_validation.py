@@ -43,9 +43,8 @@ from backend.config import (
 )
 from backend.data.rates import get_risk_free_rate
 from backend.engine.asset_universe import get_ticker_map
-from backend.engine.optimizer import (
-    STRATEGIC_UNIVERSE, build_risk_targeted_portfolio, _get_weight_bounds,
-)
+from backend.engine.optimizer import STRATEGIC_UNIVERSE, _get_weight_bounds
+from backend.eval.legacy_construction import build_risk_targeted_portfolio
 from backend.data.returns import build_monthly_gbp_log_returns
 from backend.engine.quant_models import blend_trailing_bl, ewma_lw_cov
 from backend.eval.metrics import realized_sharpe
